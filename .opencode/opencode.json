@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mode": {
+    "build": {
+      "description": "Primary agent for making code changes, implementing features, and debugging",
+      "mode": "primary"
+    },
+    "plan": {
+      "description": "Agent for responding to architecture questions, investigating bugs, or before large decisions. Use for deep research, strategic recommendations, or thinking through design choices.",
+      "mode": "primary",
+      "color": "secondary"
+    }
+  }
+}
