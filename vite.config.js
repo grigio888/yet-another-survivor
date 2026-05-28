@@ -30,6 +30,15 @@ export default defineConfig({
 					include: ['src/**/*.{test,spec}.{js,ts}'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
 				}
+			},
+
+			{
+				extends: './vite.config.js',
+				test: {
+					name: 'game',
+					environment: 'jsdom',
+					include: ['tests/**/*.{test,spec}.{js,ts}'],
+				}
 			}
 		]
 	}
