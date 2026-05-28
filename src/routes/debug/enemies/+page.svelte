@@ -4,6 +4,7 @@
     import { Shooter } from '$lib/game/entities/Shooter';
     import { Chief } from '$lib/game/entities/Chief';
     import { ENEMIES, CANVAS } from '$lib/game/config';
+    import { projectileHitsEntity, entityCollidesWith } from '$lib/game/systems/collision';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
@@ -73,6 +74,10 @@
         timeAlive += dt;
 
         if (character) character.update(dt, movement);
+        if (character) {
+            character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
+            character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
+        }
         invincible = character?.isInvincible() ?? false;
 
         // Update enemies, filter dead ones, collect new projectiles
@@ -104,11 +109,7 @@
 
         // Check colliding projectiles vs character
         for (const p of projectiles) {
-            if (
-                p.alive && character &&
-                Math.abs(p.x - character.x) < character.size &&
-                Math.abs(p.y - character.y) < character.size
-            ) {
+            if (p.alive && character && projectileHitsEntity(p, character)) {
                 character.takeDamage(p.damage);
                 p.alive = false;
             }
@@ -117,7 +118,7 @@
         // Check enemy-character collision
         if (character) {
             for (const e of enemies) {
-                if (e.collidesWith(character)) {
+                if (entityCollidesWith(e, character)) {
                     character.takeDamage(e.damage);
                 }
             }

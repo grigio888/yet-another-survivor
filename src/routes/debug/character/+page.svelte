@@ -62,6 +62,8 @@
 
         if (character) {
             character.update(dt, movement);
+            character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
+            character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
             timeAlive += dt;
             invincible = character.isInvincible();
         }
