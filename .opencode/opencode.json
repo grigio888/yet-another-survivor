@@ -9,6 +9,11 @@
       "description": "Agent for responding to architecture questions, investigating bugs, or before large decisions. Use for deep research, strategic recommendations, or thinking through design choices.",
       "mode": "primary",
       "color": "secondary"
+    },
+    "Game Dev": {
+      "description": "Agent for implementing game mechanics, systems, and behaviors. Use when working on game engine, entities, game logic, and game-specific features.",
+      "mode": "primary",
+      "color": "success"
     }
   }
 }
