@@ -47,20 +47,12 @@
         describe('update', () => {
             const dt = 0.016;
 
-            it('moves toward target position', () => {
+            it('does not move base class — subclasses handle movement', () => {
                 enemy.update(dt, 200, 200);
 
-                // Should move diagonally toward target
-                expect(enemy.x).toBeGreaterThan(0);
-                expect(enemy.y).toBeGreaterThan(0);
-            });
-
-            it('moves along X axis only', () => {
-                enemy.update(dt, 50, 0);
-
-                // Should move 1.6 pixels toward target
-                expect(enemy.x).toBeCloseTo(1.6, 1);
-                expect(enemy.y).toBeCloseTo(1.6, 1);
+                // Base class only updates timer, subclasses override for movement
+                expect(enemy.x).toBe(0);
+                expect(enemy.y).toBe(0);
             });
 
             it('tracks elapsed time between shots', () => {

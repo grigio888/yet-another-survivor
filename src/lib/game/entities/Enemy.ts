@@ -38,11 +38,7 @@
         }
 
         update(dt: number, targetX: number, targetY: number) {
-            // Move toward target
-            this.x += this.speed * dt;
-            this.y += this.speed * dt;
-
-            // Enemy projectiles have cooldown too
+            // Update internal timers
             this.lastShot += dt * 1000;
         }
 
