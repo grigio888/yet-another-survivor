@@ -49,6 +49,54 @@ export function entityCollidesWith(
 }
 
 /**
+ * Push overlapping entities apart so they don't stack on top of each other.
+ * Each entity is treated as a circle of radius `size / 2`. For every
+ * overlapping pair, both entities are nudged half the overlap along the axis
+ * between their centers. Runs `iterations` relaxation passes for stability
+ * when many entities are clustered together.
+ */
+export function separateEntities(
+    entities: { x: number; y: number; size: number }[],
+    iterations: number = 1
+): void {
+    for (let pass = 0; pass < iterations; pass++) {
+        for (let i = 0; i < entities.length; i++) {
+            for (let j = i + 1; j < entities.length; j++) {
+                const a = entities[i];
+                const b = entities[j];
+
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const minDist = a.size / 2 + b.size / 2;
+                const distSqVal = dx * dx + dy * dy;
+
+                if (distSqVal >= minDist * minDist) continue;
+
+                let dist = Math.sqrt(distSqVal);
+                let nx: number;
+                let ny: number;
+
+                if (dist === 0) {
+                    // Exactly coincident: shove apart in an arbitrary direction
+                    nx = 1;
+                    ny = 0;
+                    dist = 0.0001;
+                } else {
+                    nx = dx / dist;
+                    ny = dy / dist;
+                }
+
+                const push = (minDist - dist) / 2;
+                a.x -= nx * push;
+                a.y -= ny * push;
+                b.x += nx * push;
+                b.y += ny * push;
+            }
+        }
+    }
+}
+
+/**
  * Check whether a projectile collides with an entity.
  * Projectiles are treated as point-like (radius ≈ 0).
  */

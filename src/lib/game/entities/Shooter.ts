@@ -1,6 +1,7 @@
     // Enemy that shoots at player when in range
     import { ENEMIES } from '../config/index.js';
     import { Enemy } from './Enemy.js';
+    import type { Projectile } from '../systems/collision.js';
 
     export class Shooter extends Enemy {
         constructor(x?: number, y?: number) {
@@ -19,7 +20,7 @@
             });
         }
 
-        update(dt: number, targetX: number, targetY: number) {
+        update(dt: number, targetX: number, targetY: number): Projectile | null {
             const dx = targetX - this.x;
             const dy = targetY - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);

@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "mode": {
+  "agent": {
     "build": {
       "description": "Primary agent for making code changes, implementing features, and debugging",
       "mode": "primary"

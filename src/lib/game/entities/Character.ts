@@ -56,6 +56,9 @@
                 const nx = dx / dist;
                 const ny = dy / dist;
 
+                // Reset the auto-fire cooldown now that we've fired
+                this.lastShot = 0;
+
                 return {
                     x: this.x,
                     y: this.y,
@@ -70,18 +73,13 @@
 
         takeDamage(amount: number) {
             // Only take damage if not invincible
-            if (Date.now() < this.invincibleUntil) {
+            if (this.isInvincible()) {
                 return;
             }
 
-            super.takeDamage(amount);
-
-            if (!this.isAlive()) {
-                this.lives--;
-                this.hp = this.lives > 0 ? this.maxHp : 0;
-            }
-
-            // Grant invulnerability frames after hit
+            // Each hit costs one life, then grants invulnerability frames
+            this.lives--;
+            this.hp = this.lives > 0 ? this.maxHp : 0;
             this.invincibleUntil = Date.now() + PLAYER.invincibleFrames;
         }
 

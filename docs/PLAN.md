@@ -2,158 +2,143 @@
 
 ## Overview
 
-A top-down survival shooter where the player dodges and fights waves of enemies. Built with SvelteKit, TypeScript, and a custom game engine using Canvas API.
+A top-down survival shooter where the player dodges and fights waves of enemies.
+Built with SvelteKit, TypeScript, Tailwind CSS, and a custom Canvas-based game
+engine, packaged for iOS/Android with Capacitor.
 
 ## Technical Stack
 
-- **Framework**: SvelteKit
+- **Framework**: SvelteKit (Svelte 5 runes, `adapter-node`)
 - **Language**: TypeScript
-- **Rendering**: HTML Canvas API (no external game engine)
-- **Audio**: Web Audio API
+- **Styling**: Tailwind CSS v4
+- **Rendering**: HTML Canvas 2D API (no external game engine)
+- **Mobile**: Capacitor (iOS + Android)
+- **Audio**: Web Audio API (planned)
 - **Testing**: Vitest
 
 ## Project Structure
 
 ```
 src/lib/game/
-├── config/      # Game constants, enemy stats, tunables
-├── input/       # Keyboard/mouse input handling
-├── engine/      # Main game loop, state machine
-├── entities/     # Character and enemy classes
-├── systems/      # Collision, combat, spawning, waves
-├── screens/      # Main menu, game over, pause
-├── ui/           # HUD, health display, score
-├── audio/        # Sound effects, music
-├── particles/    # Visual particle effects
-├── effects/      # Screen effects (shake, fade)
-└── utils/        # Helper functions
+├── config/      # [done] Game constants, enemy stats, tunables
+├── input/       # [done] Keyboard input handling
+├── entities/    # [done] Entity, Character, Enemy, Grunt, Shooter, Chief
+├── systems/     # [done] collision, combat, spawning
+├── engine/      # [todo] Main game loop, state machine
+├── screens/     # [todo] Main menu, game over
+├── ui/          # [todo] HUD, lives, score
+├── audio/       # [todo] Sound effects, music
+├── particles/   # [todo] Visual particle effects
+├── effects/     # [todo] Screen effects (shake, fade)
+└── utils/       # [todo] Helper functions
+
+src/routes/debug/  # [done] Manual harnesses for character & enemies
+tests/             # [partial] Vitest unit tests (combat covered)
 ```
+
+## Status Summary
+
+- **Done**: config, input manager, all entities, collision/combat/spawning
+  systems, debug harnesses, combat unit tests.
+- **In progress / next**: wiring systems together in a real game engine and
+  shipping a playable main route.
+- **Not started**: screens, HUD, audio, particles, effects, broader tests.
 
 ## Phase 1: Core Foundation
 
-### config/index.ts
-- `MAX_LIVES`: Maximum player lives (3)
-- `SHOOT_COOLDOWN_ms`: Auto-fire cooldown
-- `WAVE_INITIAL_ENEMIES`: Starting wave enemy count
-- `WAVE_INCREASE_PER_ROUND`: Enemies added each wave
-- Enemy stat tables (Grunt, Shooter, Chief): HP, speed, damage, range
+### config/index.ts — [done]
+- `PLAYER`: lives, speed, shoot cooldown, invincibility frames, projectile stats
+- `WAVES`: initial count, per-wave increase, spawn/wave intervals
+- `ENEMIES`: per-type HP, speed, damage, range, shoot cooldown, score, color, size
+- `SCORING`: time bonus, combo multiplier, combo decay
+- `CANVAS`: fixed 800x600 at 60 fps
+- TODO: add `PLAYER.size`, `PLAYER.maxHp`, `PLAYER.color` (currently only
+  referenced via fallbacks in `Character`)
 
-### input/manager.ts
-- Tracks WASD and arrow key state
-- Keyboard event listeners on window
-- Modifier key support (Shift for sprint?)
-- Passive input polling for game loop
+### input/manager.ts — [done]
+- Tracks WASD + arrow key state via window listeners
+- Shift = sprint modifier; Escape = pause; R = restart
+- Returns a normalized movement vector (diagonals normalized)
 
-### engine/loop.ts
-- `requestAnimationFrame`-based game loop
-- Delta time calculation for frame-independent updates
+### engine/loop.ts — [todo]
+- `requestAnimationFrame`-based loop with delta-time updates
 - State machine: MENU → PLAYING → PAUSED → GAME_OVER
-- Systems update order: input → entities → combat → particles → render
+- Update order: input → entities → combat → particles → render
+- Note: the `/debug` routes already contain working inline loops that can be
+  generalized into this engine.
 
-## Phase 2: Entities
+## Phase 2: Entities — [done]
 
-### entities/Entity.ts (Base class)
-- Common properties: x, y, width, height, hp, maxHp, speed
-- Common methods: `update(dt)`, `draw(ctx)`
+### entities/Entity.ts
+- Common props (x, y, size, hp, maxHp, speed, damage, color) and
+  `update`, `draw`, `takeDamage`, `isAlive`, AABB `collidesWith`
 
 ### entities/Character.ts
-- Extends Entity
-- Movement based on input state
-- Auto-fire at nearest enemy
-- Health/lives management
-- Invulnerability frames after hit
-- Weapon/projectile properties
+- Smooth movement from input; Shift doubles speed
+- Auto-fire cooldown + `shoot(target)` returning a projectile
+- Lives + invincibility frames handled in `takeDamage`
 
-### entities/Enemy.ts (Base class)
-- Extends Entity
-- AI update method
+### entities/Enemy.ts (base) + Grunt / Shooter / Chief
+- Grunt: melee chaser
+- Shooter: approaches, then fires when in range on a cooldown
+- Chief: slow, tanky, heavy contact damage
 
-### entities/Grunt.ts
-- Extends Enemy
-- Behavior: Move toward player
-- Stats: Low HP, moderate speed, melee damage
-
-### entities/Shooter.ts
-- Extends Enemy
-- Behavior: Move toward player, shoot when within range
-- Stats: Medium HP, slower speed, projectile attack
-
-### entities/Chief.ts
-- Extends Enemy
-- Behavior: Slow but tanky boss
-- Stats: High HP, slow speed, heavy damage
-
-## Phase 3: Systems
-
-### systems/spawning.ts
-- Wave management
-- Enemy spawn timer based on wave number
-- Spawn outside visible area
-- Different enemy mix per wave
+## Phase 3: Systems — [done]
 
 ### systems/collision.ts
-- AABB or circle-based collision detection
-- Projectile-enemy collision
-- Enemy-character collision (damage)
+- Circle-based collision helpers
+- Projectile↔enemy, enemy-projectile↔character, enemy↔character (melee)
 
 ### systems/combat.ts
-- Damage calculation
-- Health updates
-- Kill detection and scoring
-- Life loss on damage
+- Resolves projectile damage, kills, scoring, combo + time bonus, player hits
+- TODO: remove leftover `console.log` and the unused `enemiesToRefillHp` path
 
-## Phase 4: Screens & UI
+### systems/spawning.ts
+- `SpawningSystem` class managing waves, spawn timing, off-screen spawn points
+- Wave composition shifts toward Shooters/Chiefs at higher waves
 
-### screens/menu.ts
-- Welcome screen with start button
-- Instructions display
+## Phase 4: Screens & UI — [todo]
 
-### screens/gameover.ts
-- Final score display
-- Restart button
+- `screens/menu.ts` — start screen + instructions
+- `screens/gameover.ts` — final score + restart
+- `ui/hud.ts` — lives, score, and wave overlay on the canvas
+- Replace boilerplate `src/routes/+page.svelte` with the actual game route
 
-### ui/hud.ts
-- Lives display (hearts/icons)
-- Score/wave counter
-- Drawn overlay on canvas
+## Phase 5: Polish — [todo]
 
-## Phase 5: Polish
-
-### audio/manager.ts
-- Sound effect loading via Web Audio API
-- Play methods for: shoot, hit, enemy_death, game_over
-
-### particles/manager.ts
-- Spawn particle on enemy kill
-- Spawn particle on player hit
-- Particle types: explode, spark, blood
-
-### effects/manager.ts
-- Screen shake on damage
-- Flash effects
-- Fade transitions between screens
+- `audio/manager.ts` — shoot, hit, enemy_death, game_over via Web Audio API
+- `particles/manager.ts` — explode/spark/blood on kills and hits
+- `effects/manager.ts` — screen shake, flashes, fade transitions
 
 ## Implementation Order
 
-1. **Phase 1.1** — Config constants
-2. **Phase 1.2** — Input manager
-3. **Phase 2.1** — Base Entity and Character classes
-4. **Phase 2.2** — Enemy classes (Grunt first, then Shooter, then Chief)
-5. **Phase 3.1** — Collision detection system
-6. **Phase 3.2** — Combat system
-7. **Phase 3.3** — Spawning system
-8. **Phase 1.3** — Game engine/loop (with rendering)
-9. **Phase 4.1** — HUD and lives display
-10. **Phase 4.2** — Game over screen + restart
-11. **Phase 4.3** — Main menu screen
-12. **Phase 5** — Audio, particles, effects
+1. ~~Config constants~~ (done)
+2. ~~Input manager~~ (done)
+3. ~~Base Entity and Character~~ (done)
+4. ~~Enemy classes (Grunt, Shooter, Chief)~~ (done)
+5. ~~Collision detection~~ (done)
+6. ~~Combat system~~ (done)
+7. ~~Spawning system~~ (done)
+8. **Game engine/loop + playable main route** ← next
+9. HUD and lives display
+10. Game over screen + restart
+11. Main menu screen
+12. Audio, particles, effects
 
-## Open Questions to Resolve
+## Resolved Decisions
 
-- Movement style: smooth interpolation vs. discrete jumps
-- Enemy visuals: colored shapes vs. pixel art vs. emojis
-- Projectiles: do enemies shoot too? (Shooter class says yes)
-- Wave progression: timer-based or kill-based?
-- Score system: kills, time survived, combo multiplier?
-- Sprint ability: Should Shift enable faster movement?
-- Canvas sizing: fullscreen or fixed size container?
+- **Movement**: smooth, frame-rate independent (delta-time) interpolation
+- **Enemy visuals**: colored squares per type (green Grunt, orange Shooter, pink Chief)
+- **Enemy projectiles**: yes — Shooters fire at the player when in range
+- **Wave progression**: hybrid — advance on a wave timer or when all spawned enemies die
+- **Score system**: kill value + time-survived bonus + combo multiplier
+- **Sprint**: Shift enables 2x movement speed
+- **Canvas sizing**: fixed 800x600
+
+## Open Questions
+
+- Mobile controls: on-screen joystick/touch input for Capacitor builds (keyboard only today)
+- Pause/restart UX: surface the Escape/R bindings in actual UI
+- Difficulty tuning: validate wave composition and spawn pacing in real play
+- Power-ups / upgrades between waves?
+- Persistence: high-score storage across sessions?

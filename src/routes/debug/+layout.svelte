@@ -11,7 +11,7 @@
     </h1>
     <nav>
         <ul class="flex gap-4">
-            {#each ['character', 'enemies'] as page}
+            {#each ['character', 'enemies', 'combat'] as page}
                 <li>
                     <a
                         href={`/debug/${page}`}

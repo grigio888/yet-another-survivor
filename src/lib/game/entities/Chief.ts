@@ -19,7 +19,7 @@
             });
         }
 
-        update(dt: number, targetX: number, targetY: number) {
+        update(dt: number, targetX: number, targetY: number): null {
             const dx = targetX - this.x;
             const dy = targetY - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);

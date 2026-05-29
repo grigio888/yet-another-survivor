@@ -1,56 +1,73 @@
 # Project: Vampire Survivors Clone
 
+A top-down survival shooter where the player auto-fires at the nearest enemy
+while dodging escalating waves. Built as a SvelteKit web app that is also
+packaged for iOS and Android via Capacitor.
+
+## Tech Stack
+
+- **Framework**: SvelteKit (Svelte 5 runes, `adapter-node`)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Rendering**: HTML Canvas 2D API (no external game engine)
+- **Mobile**: Capacitor (web build in `build/` is wrapped as native iOS/Android)
+- **Testing**: Vitest
+
 ## Core Features
 
-- Character controlled by WASD or arrow keys
-- Three enemy types: Grunt, Shooter, Chief
-- Enemy variants with different behaviors and stats
-- Reuseable components for enemies, map, and character
-- Player health system with 3 lives
-- Game over screen with restart option
-
+- Character controlled by WASD or arrow keys, with Shift to sprint (2x speed)
+- Auto-fire: the character shoots at the nearest enemy on a cooldown
+- Three enemy types: Grunt (melee chaser), Shooter (ranged), Chief (tanky boss)
+- Wave-based spawning with enemy composition shifting toward tougher mixes
+- Player lives system (3 lives) with post-hit invincibility frames
+- Scoring: kill value + time-survived bonus + combo multiplier
+- Game over with restart (planned)
 
 ## Project Structure
 
-- `src/components/`: Reusable UI components
-- `src/lib/game/`: Game engine and core logic
-- `src/lib/game/entities/`: Enemy and character classes
-- `src/lib/game/systems/`: Game systems like collision detection
-- `src/lib/game/utils/`: Utility functions
-- `src/lib/game/config/`: Game configuration
-- `src/lib/game/assets/`: Game assets
-- `src/lib/game/screens/`: Game screens like main menu, game over, etc.
-- `src/lib/game/ui/`: Game UI components
-- `src/lib/game/input/`: Game input handling
-- `src/lib/game/audio/`: Game audio handling
-- `src/lib/game/particles/`: Game particles handling
-- `src/lib/game/effects/`: Game effects handling
-- `src/lib/game/particles/`: Game particles handling
+Implemented:
+
+- `src/lib/game/config/` — game constants and tunables (`CANVAS`, `PLAYER`, `WAVES`, `ENEMIES`, `SCORING`)
+- `src/lib/game/entities/` — `Entity` base class and `Character`, `Enemy`, `Grunt`, `Shooter`, `Chief`
+- `src/lib/game/systems/` — `collision.ts`, `combat.ts`, `spawning.ts`
+- `src/lib/game/input/` — keyboard `InputManager`
+- `src/routes/debug/` — manual test harnesses (`/debug/character`, `/debug/enemies`) that run a game loop inline
+- `tests/lib/game/systems/` — Vitest unit tests (currently the combat system)
+
+Planned (not yet created):
+
+- `src/lib/game/engine/` — central game loop and MENU → PLAYING → PAUSED → GAME_OVER state machine
+- `src/lib/game/screens/` — main menu, game over
+- `src/lib/game/ui/` — HUD (lives, score, wave)
+- `src/lib/game/audio/` — sound effects / music via Web Audio API
+- `src/lib/game/particles/` — kill/hit particle effects
+- `src/lib/game/effects/` — screen shake, flashes, fades
+- `src/lib/game/utils/` — shared helpers
 
 ## Game Mechanics
 
-- Character moves with WASD or arrow keys
-- Character shoots at nearest enemy
-- Enemies move towards character
-- Shooters shoot at character from distance
-- Chiefs are tankier and take more damage
-- Player loses one life when hit by enemy
-- Game over when player has 0 lives
-- Restart button to start new game
+- Character moves smoothly with WASD/arrows; Shift doubles movement speed
+- Character auto-fires a projectile at the nearest enemy each cooldown
+- Grunts and Chiefs chase the player and deal contact (melee) damage
+- Shooters approach until in range, then fire projectiles at the player
+- Chiefs are slow but high-HP and hit hard
+- Contact or projectile hits cost the player a life, then grant brief invincibility
+- Game over when the player reaches 0 lives; restart begins a fresh run
 
-## Implementation Steps
+## Status & Known Gaps
 
-1. Create the character component
-2. Create the enemy components
-3. Create the map component
-4. Create the game engine
-5. Create the game over screen
-6. Create the restart button
-7. Create the game loop
-8. Create the game logic
-9. Create the game UI
-10. Create the game input
-11. Create the game audio
-12. Create the game particles
-13. Create the game effects
-14. Create the game particles
+- Game logic (entities, collision, combat, spawning, input) is implemented and
+  exercised through the `/debug` routes.
+- No assembled game yet: `src/routes/+page.svelte` is still SvelteKit
+  boilerplate and there is no `engine/` loop tying the systems together.
+- `config.PLAYER` is missing `size`, `maxHp`, and `color`, which `Character`
+  references via fallbacks — these should be added to the config.
+- `combat.ts` has a leftover `console.log` and an unused `enemiesToRefillHp`
+  path that should be cleaned up.
+
+## Build & Run
+
+- `npm run dev` — local dev server (preferred during development)
+- `npm run test` — run unit tests once (`npm run test:unit` for watch mode)
+- `npm run build` — production web build into `build/`
+- `npm run cap:sync` / `cap:ios` / `cap:android` — sync and open native apps

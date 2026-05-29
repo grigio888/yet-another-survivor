@@ -1,5 +1,6 @@
     // Base class for all enemy types
     import { Entity } from './Entity.js';
+    import type { Projectile } from '../systems/collision.js';
 
     export class Enemy extends Entity {
         public type: string;
@@ -37,16 +38,19 @@
             this.scoreValue = options.scoreValue ?? 0;
         }
 
-        update(dt: number, targetX: number, targetY: number) {
+        // Returns a projectile when the enemy fires this frame, otherwise null.
+        // Subclasses that move/shoot override this and call super.update().
+        update(dt: number, targetX: number, targetY: number): Projectile | null {
             // Update internal timers
             this.lastShot += dt * 1000;
+            return null;
         }
 
         canShoot() {
             return false; // Override in subclasses that shoot
         }
 
-        shoot(targetX: number, targetY: number) {
+        shoot(targetX: number, targetY: number): Projectile | null {
             const dx = targetX - this.x;
             const dy = targetY - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);

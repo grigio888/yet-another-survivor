@@ -1,22 +1,27 @@
 <script lang="ts">
+    import { Character } from '$lib/game/entities/Character';
     import { Grunt } from '$lib/game/entities/Grunt';
     import { Shooter } from '$lib/game/entities/Shooter';
     import { Chief } from '$lib/game/entities/Chief';
     import type { Enemy } from '$lib/game/entities/Enemy';
-    import { ENEMIES, CANVAS } from '$lib/game/config';
-    import { separateEntities } from '$lib/game/systems/collision';
+    import { ENEMIES, CANVAS, PLAYER } from '$lib/game/config';
+    import { projectileHitsEntity, separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
+    import { processCombat } from '$lib/game/systems/combat';
+    import type { CombatStats } from '$lib/game/systems/combat';
 
     let canvas: HTMLCanvasElement | null = $state(null);
+    let character: Character | null = $state(null);
     let enemies = $state<Enemy[]>([]);
+    let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
     let frameId = $state(0);
     let lastTime = $state(0);
     let keys = $state(new Set<string>());
     let movement = $state({ dx: 0, dy: 0, sprint: false });
+    let invincible = $state(false);
     let timeAlive = $state(0);
-    // A movable point the enemies chase / aim at (stands in for the player)
-    let target = $state({ x: CANVAS.width / 2, y: CANVAS.height / 2 });
+    let stats = $state<CombatStats>(createStats());
 
     const enemyClasses = [
         { label: 'Grunt', cls: Grunt },
@@ -26,12 +31,19 @@
 
     const W = CANVAS.width;
     const H = CANVAS.height;
-    // Speed the target marker moves under WASD, in pixels per second
-    const TARGET_SPEED = 200;
-    // Damage applied when clicking an enemy
-    const CLICK_DAMAGE = 25;
     // How far a projectile may travel past the canvas before being culled
     const PROJECTILE_MARGIN = 50;
+
+    function createStats(): CombatStats {
+        return {
+            score: 0,
+            kills: 0,
+            wave: 1,
+            combo: 0,
+            lastKillTime: Date.now(),
+            timeSurvived: 0,
+        };
+    }
 
     function onKeydown(e: KeyboardEvent) {
         keys.add(e.key.toLowerCase());
@@ -45,11 +57,12 @@
 
     function recalcMovement() {
         let dx = 0, dy = 0;
+        let sprint = false;
         if (keys.has('w') || keys.has('arrowup')) dy -= 1;
         if (keys.has('s') || keys.has('arrowdown')) dy += 1;
         if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
         if (keys.has('d') || keys.has('arrowright')) dx += 1;
-        const sprint = keys.has('shift');
+        sprint = keys.has('shift');
         const len = Math.sqrt(dx * dx + dy * dy);
         if (len > 0) {
             dx /= len;
@@ -66,31 +79,33 @@
 
     function resetAll() {
         enemies = [];
+        playerProjectiles = [];
         enemyProjectiles = [];
-        target = { x: W / 2, y: H / 2 };
+        if (character) {
+            character.hp = character.maxHp;
+            character.lives = PLAYER.maxLives;
+            character.invincibleUntil = 0;
+            character.lastShot = 0;
+        }
+        stats = createStats();
         timeAlive = 0;
     }
 
-    function countByType(type: string): number {
-        return enemies.filter((e) => e.type === type).length;
-    }
-
-    // Click an enemy to damage it, so HP bars and death can be inspected
-    function onCanvasClick(e: MouseEvent) {
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * (W / rect.width);
-        const y = (e.clientY - rect.top) * (H / rect.height);
-
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            const en = enemies[i];
-            if (Math.abs(en.x - x) <= en.size / 2 && Math.abs(en.y - y) <= en.size / 2) {
-                en.takeDamage(CLICK_DAMAGE);
-                if (!en.isAlive()) enemies.splice(i, 1);
-                enemies = enemies;
-                break;
+    // Nearest living enemy to the player, used for auto-fire targeting
+    function nearestEnemy(): Enemy | null {
+        if (!character) return null;
+        let best: Enemy | null = null;
+        let bestDist = Infinity;
+        for (const e of enemies) {
+            const dx = e.x - character.x;
+            const dy = e.y - character.y;
+            const d = dx * dx + dy * dy;
+            if (d < bestDist) {
+                bestDist = d;
+                best = e;
             }
         }
+        return best;
     }
 
     function offscreen(p: Projectile): boolean {
@@ -107,26 +122,57 @@
         lastTime = now;
         timeAlive += dt;
 
-        // Move the target marker with WASD (Shift = faster)
-        const speed = movement.sprint ? TARGET_SPEED * 2 : TARGET_SPEED;
-        target.x = Math.max(0, Math.min(W, target.x + movement.dx * speed * dt));
-        target.y = Math.max(0, Math.min(H, target.y + movement.dy * speed * dt));
+        if (!character) {
+            frameId = requestAnimationFrame(loop);
+            return;
+        }
 
-        // Update enemy AI; shooters return a projectile aimed at the target
+        // Player movement + auto-fire toward the nearest enemy
+        const canShoot = character.update(dt, movement);
+        character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
+        character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
+        invincible = character.isInvincible();
+
+        if (canShoot) {
+            const target = nearestEnemy();
+            if (target) {
+                const proj = character.shoot(target);
+                if (proj) playerProjectiles.push(proj);
+            }
+        }
+
+        // Update enemy AI; shooters return a projectile aimed at the player
         for (const e of enemies) {
-            const result = e.update(dt, target.x, target.y);
+            const result = e.update(dt, character.x, character.y);
             if (result) enemyProjectiles.push(result);
         }
 
         // Keep enemies from stacking on top of each other
         separateEntities(enemies, 2);
 
-        // Advance projectiles and cull those that leave the arena
+        // Advance every projectile along its direction
+        for (const p of playerProjectiles) {
+            p.x += p.direction.dx * p.speed * dt;
+            p.y += p.direction.dy * p.speed * dt;
+        }
         for (const p of enemyProjectiles) {
             p.x += p.direction.dx * p.speed * dt;
             p.y += p.direction.dy * p.speed * dt;
         }
-        enemyProjectiles = enemyProjectiles.filter((p) => !offscreen(p));
+
+        // Resolve all damage, kills, scoring, and player hits in one place
+        const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt);
+
+        // Remove spent player projectiles and any that flew off-screen
+        playerProjectiles = playerProjectiles.filter(
+            (p, i) => !result.combat.projectilesToRemove.has(i) && !offscreen(p)
+        );
+        // Enemy projectiles are consumed on contact (damage already applied)
+        enemyProjectiles = enemyProjectiles.filter(
+            (p) => !offscreen(p) && !projectileHitsEntity(p, character!)
+        );
+        // Drop enemies the combat system killed
+        enemies = enemies.filter((e) => e.isAlive());
 
         draw();
         frameId = requestAnimationFrame(loop);
@@ -148,16 +194,12 @@
             ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
         }
 
-        // Draw the target marker enemies are reacting to
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(target.x, target.y, 8, 0, Math.PI * 2);
-        ctx.moveTo(target.x - 12, target.y);
-        ctx.lineTo(target.x + 12, target.y);
-        ctx.moveTo(target.x, target.y - 12);
-        ctx.lineTo(target.x, target.y + 12);
-        ctx.stroke();
+        // Draw character
+        if (character) {
+            if (invincible) ctx.globalAlpha = 0.5;
+            character.draw(ctx);
+            ctx.globalAlpha = 1;
+        }
 
         // Draw enemies
         for (const e of enemies) {
@@ -173,6 +215,14 @@
             ctx.fillRect(e.x - barW / 2, e.y - e.size / 2 - 8, barW * hpRatio, 4);
         }
 
+        // Draw player projectiles
+        ctx.fillStyle = '#2563eb';
+        for (const p of playerProjectiles) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
         // Draw enemy projectiles
         ctx.fillStyle = '#f97316';
         for (const p of enemyProjectiles) {
@@ -186,10 +236,12 @@
         ctx.font = '12px monospace';
         ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 15);
         ctx.fillText(`enemies: ${enemies.length}`, 5, 30);
-        ctx.fillText(`grunts: ${countByType('grunt')}`, 5, 45);
-        ctx.fillText(`shooters: ${countByType('shooter')}`, 5, 60);
-        ctx.fillText(`chiefs: ${countByType('chief')}`, 5, 75);
-        ctx.fillText(`projectiles: ${enemyProjectiles.length}`, 5, 90);
+        ctx.fillText(`player projectiles: ${playerProjectiles.length}`, 5, 45);
+        ctx.fillText(`enemy projectiles: ${enemyProjectiles.length}`, 5, 60);
+        if (character) ctx.fillText(`player lives: ${character.lives}`, 5, 75);
+        ctx.fillText(`score: ${stats.score}`, 5, 90);
+        ctx.fillText(`kills: ${stats.kills}`, 5, 105);
+        ctx.fillText(`combo: ${stats.combo}`, 5, 120);
     }
 
     $effect(() => {
@@ -198,6 +250,7 @@
             canvas.height = H;
         }
 
+        character = new Character({ x: W / 2, y: H / 2 });
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
@@ -211,7 +264,7 @@
     });
 </script>
 
-<h1 class="text-6xl my-4 text-center">Enemies Debug</h1>
+<h1 class="text-6xl my-4 text-center">Combat Debug</h1>
 
 <div class="flex w-fit mx-auto rounded-md overflow-hidden border border-(--border-color)">
     <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color)"
@@ -247,11 +300,15 @@
             </table>
             <hr class="h-px">
             <div class="flex flex-col gap-2">
-                <h3 class="text-lg font-bold mb-2">Controls</h3>
-                <p class="text-sm text-gray-500">WASD/Arrows: Move the target marker</p>
-                <p class="text-sm text-gray-500">Shift: Move target faster</p>
-                <p class="text-sm text-gray-500">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
+                <h3 class="text-lg font-bold mb-2">Combat</h3>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+                    <span>Score</span><span class="text-right text-(--text-color)">{stats.score}</span>
+                    <span>Kills</span><span class="text-right text-(--text-color)">{stats.kills}</span>
+                    <span>Combo</span><span class="text-right text-(--text-color)">{stats.combo}</span>
+                    <span>Lives</span><span class="text-right text-(--text-color)">{character?.lives ?? 0}</span>
+                    <span>Time</span><span class="text-right text-(--text-color)">{timeAlive.toFixed(1)}s</span>
+                </div>
             </div>
     </div>
-    <canvas bind:this={canvas} onclick={onCanvasClick}></canvas>
+    <canvas bind:this={canvas}></canvas>
 </div>

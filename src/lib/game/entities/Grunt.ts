@@ -18,7 +18,7 @@
             });
         }
 
-        update(dt: number, targetX: number, targetY: number) {
+        update(dt: number, targetX: number, targetY: number): null {
             // Move toward target position
             const dx = targetX - this.x;
             const dy = targetY - this.y;
@@ -33,5 +33,6 @@
             }
 
             super.update(dt, targetX, targetY);
+            return null;
         }
     }
