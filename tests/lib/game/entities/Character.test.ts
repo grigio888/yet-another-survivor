@@ -51,10 +51,10 @@
                 expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
 
-            it('rejects shot when cooldown not expired', () => {
-                character.lastShot = MAGE_STATS.shootCooldown - 1;
+            it('returns false from update when shoot cooldown has not elapsed', () => {
+                character.lastShot = 0;
 
-                expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
+                expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(false);
             });
 
             it('grants invulnerability after hit', () => {
@@ -73,7 +73,7 @@
 
         describe('shoot', () => {
             it('aims at target position', () => {
-                const target = { x: 600, y: 300 };
+                const target = { x: 480, y: 300 };
                 const projectile = character.shoot(target);
 
                 expect(projectile).not.toBeNull();
@@ -81,6 +81,8 @@
                     expect(projectile.x).toBe(character.x);
                     expect(projectile.direction.dx).toBeGreaterThan(0);
                     expect(projectile.direction.dy).toBeCloseTo(0);
+                    expect(projectile.speed).toBe(MAGE_STATS.projectileSpeed);
+                    expect(projectile.damage).toBe(MAGE_STATS.projectileDamage);
                 }
             });
 

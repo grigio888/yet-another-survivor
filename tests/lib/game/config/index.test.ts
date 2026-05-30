@@ -24,6 +24,7 @@
         it('has spawn and wave intervals set', () => {
             expect(WAVES.spawnInterval).toBe(2000);
             expect(WAVES.waveInterval).toBe(15000);
+            expect(WAVES.spawnMargin).toBe(100);
         });
     });
 

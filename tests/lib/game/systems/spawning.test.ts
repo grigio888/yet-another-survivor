@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CANVAS, ENEMIES, WAVES } from '../../../../src/lib/game/config';
 import {
+    createEnemy,
     isOutsideCanvasView,
     pickSpawnPosition,
     spawnEnemy,
@@ -53,5 +54,23 @@ describe('spawnEnemy', () => {
             expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.size)).toBe(true);
             expect(enemy.type).toBe(type);
         }
+    });
+});
+
+describe('createEnemy', () => {
+    it('instantiates the requested enemy class at the given position', () => {
+        const grunt = createEnemy('grunt', 10, 20);
+        const shooter = createEnemy('shooter', 30, 40);
+        const chief = createEnemy('chief', 50, 60);
+
+        expect(grunt.type).toBe('grunt');
+        expect(grunt.x).toBe(10);
+        expect(grunt.y).toBe(20);
+
+        expect(shooter.type).toBe('shooter');
+        expect(shooter.x).toBe(30);
+
+        expect(chief.type).toBe('chief');
+        expect(chief.y).toBe(60);
     });
 });
