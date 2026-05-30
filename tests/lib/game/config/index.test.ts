@@ -1,5 +1,5 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
-    import { CANVAS, CHARACTERS, WAVES, ENEMIES, SCORING } from '$lib/game/config/index';
+    import { CANVAS, WAVES, ENEMIES, SCORING } from '$lib/game/config/index';
 
     describe('CANVAS', () => {
         it('has correct dimensions', () => {
@@ -9,35 +9,6 @@
 
         it('has fps set to 60', () => {
             expect(CANVAS.fps).toBe(60);
-        });
-    });
-
-    describe('CHARACTERS', () => {
-        describe('mage', () => {
-            it('has type defined', () => {
-                expect(CHARACTERS.mage.type).toBe('mage');
-            });
-
-            it('has maxLives set to 3', () => {
-                expect(CHARACTERS.mage.maxLives).toBe(3);
-            });
-
-            it('has speed defined', () => {
-                expect(CHARACTERS.mage.speed).toBe(160);
-            });
-
-            it('has shootCooldown defined', () => {
-                expect(CHARACTERS.mage.shootCooldown).toBe(400);
-            });
-
-            it('has invincible frames defined', () => {
-                expect(CHARACTERS.mage.invincibleFrames).toBe(1000);
-            });
-
-            it('projectile has speed and damage', () => {
-                expect(CHARACTERS.mage.projectileSpeed).toBe(120);
-                expect(CHARACTERS.mage.projectileDamage).toBe(25);
-            });
         });
     });
 

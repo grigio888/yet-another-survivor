@@ -1,7 +1,14 @@
 <script lang="ts">
-    import { Mage, type Character } from '$lib/game/entities/characters';
+    import { Mage, CHARACTER_STATS, type Character } from '$lib/game/entities/characters';
     import { Grunt, Shooter, Chief, type Enemy } from '$lib/game/entities/enemies';
-    import { ENEMIES, CANVAS, CHARACTERS } from '$lib/game/config';
+    import { ENEMIES, CANVAS } from '$lib/game/config';
+    import {
+        loadCharacterSprites,
+        snapEightDirection,
+        type CharacterSpriteSet,
+        type FacingDirection,
+    } from '$lib/game/rendering/characterSprites';
+    import { drawArenaEntities } from '$lib/game/rendering/arenaRender';
     import { projectileHitsEntity, separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
@@ -9,6 +16,7 @@
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
+    let sprites = $state<CharacterSpriteSet | null>(null);
     let enemies = $state<Enemy[]>([]);
     let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
@@ -19,6 +27,7 @@
     let invincible = $state(false);
     let timeAlive = $state(0);
     let stats = $state<CombatStats>(createStats());
+    let facing = $state<FacingDirection>({ dx: 0, dy: 1 });
 
     const enemyClasses = [
         { label: 'Grunt', cls: Grunt },
@@ -60,12 +69,21 @@
         if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
         if (keys.has('d') || keys.has('arrowright')) dx += 1;
         sprint = keys.has('shift');
+
+        if (dx !== 0 || dy !== 0) {
+            facing = snapEightDirection(dx, dy);
+        }
+
         const len = Math.sqrt(dx * dx + dy * dy);
         if (len > 0) {
             dx /= len;
             dy /= len;
         }
         movement = { dx, dy, sprint };
+    }
+
+    function updateFacingTowardTarget(target: Enemy) {
+        facing = snapEightDirection(target.x - character!.x, target.y - character!.y);
     }
 
     function addEnemy(type: string) {
@@ -80,7 +98,7 @@
         enemyProjectiles = [];
         if (character) {
             character.hp = character.maxHp;
-            character.lives = CHARACTERS.mage.maxLives;
+            character.lives = CHARACTER_STATS[character.type as keyof typeof CHARACTER_STATS].maxLives;
             character.invincibleUntil = 0;
             character.lastShot = 0;
         }
@@ -88,21 +106,10 @@
         timeAlive = 0;
     }
 
-    // Nearest living enemy to the player, used for auto-fire targeting
-    function nearestEnemy(): Enemy | null {
+    // Nearest living enemy within attack range
+    function nearestEnemyInRange(): Enemy | null {
         if (!character) return null;
-        let best: Enemy | null = null;
-        let bestDist = Infinity;
-        for (const e of enemies) {
-            const dx = e.x - character.x;
-            const dy = e.y - character.y;
-            const d = dx * dx + dy * dy;
-            if (d < bestDist) {
-                bestDist = d;
-                best = e;
-            }
-        }
-        return best;
+        return character.findNearestInRange(enemies.filter((e) => e.isAlive()));
     }
 
     function offscreen(p: Projectile): boolean {
@@ -131,8 +138,11 @@
         invincible = character.isInvincible();
 
         if (canShoot) {
-            const target = nearestEnemy();
+            const target = nearestEnemyInRange();
             if (target) {
+                if (movement.dx === 0 && movement.dy === 0) {
+                    updateFacingTowardTarget(target);
+                }
                 const proj = character.shoot(target);
                 if (proj) playerProjectiles.push(proj);
             }
@@ -191,26 +201,11 @@
             ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
         }
 
-        // Draw character
-        if (character) {
-            if (invincible) ctx.globalAlpha = 0.5;
-            character.draw(ctx);
-            ctx.globalAlpha = 1;
-        }
-
-        // Draw enemies
-        for (const e of enemies) {
-            ctx.fillStyle = e.color;
-            ctx.fillRect(e.x - e.size / 2, e.y - e.size / 2, e.size, e.size);
-
-            // HP bar
-            const hpRatio = e.hp / e.maxHp;
-            const barW = e.size;
-            ctx.fillStyle = '#ccc';
-            ctx.fillRect(e.x - barW / 2, e.y - e.size / 2 - 8, barW, 4);
-            ctx.fillStyle = hpRatio > 0.5 ? '#4ade8f' : hpRatio > 0.25 ? '#f59e0b' : '#ef4444';
-            ctx.fillRect(e.x - barW / 2, e.y - e.size / 2 - 8, barW * hpRatio, 4);
-        }
+        drawArenaEntities(ctx, character, facing, sprites, enemies, {
+            showRange: true,
+            showHitbox: true,
+            characterInvincible: invincible,
+        });
 
         // Draw player projectiles
         ctx.fillStyle = '#2563eb';
@@ -252,6 +247,10 @@
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
         window.addEventListener('keyup', onKeyup);
+
+        loadCharacterSprites('mage').then((loaded) => {
+            sprites = loaded;
+        });
 
         return () => {
             if (frameId) cancelAnimationFrame(frameId);

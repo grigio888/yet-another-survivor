@@ -53,7 +53,7 @@
 
     **Extra Properties:**
     - `type` - Character classification (mage, etc.)
-    - `lives` - Number of lives remaining (from `CHARACTERS` config)
+    - `lives` - Number of lives remaining (from character stats)
     - `lastShot` - Timestamp of last shot taken
     - `invincibleUntil` - Timestamp until invulnerability expires
 
@@ -65,11 +65,11 @@
 
     ### Mage
 
-    Ranged spellcaster. Inherits from Character. Stats come from `CHARACTERS.mage` in config.
+    Ranged spellcaster. Inherits from Character. Stats are defined in `Mage.ts` as `MAGE_STATS`.
 
     Usage:
     ```typescript
-    import { Mage } from '$lib/game/entities/characters';
+    import { Mage, MAGE_STATS } from '$lib/game/entities/characters';
     const mage = new Mage(400, 300);
     ```
 

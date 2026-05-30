@@ -1,9 +1,17 @@
 <script lang="ts">
-    import { Mage, type Character } from '$lib/game/entities/characters';
-    import { CHARACTERS, CANVAS, type CharacterId } from '$lib/game/config';
+    import { Mage, CHARACTER_STATS, type Character, type CharacterId } from '$lib/game/entities/characters';
+    import { CANVAS } from '$lib/game/config';
+    import {
+        drawCharacterVisual,
+        loadCharacterSprites,
+        snapEightDirection,
+        type CharacterSpriteSet,
+        type FacingDirection,
+    } from '$lib/game/rendering/characterSprites';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
+    let sprites = $state<CharacterSpriteSet | null>(null);
     let frameId = $state(0);
     let lastTime = $state(0);
     let keys = $state(new Set<string>());
@@ -11,7 +19,7 @@
     let invincible = $state(false);
     let timeAlive = $state(0);
     // Last snapped 8-way facing; persists while idle
-    let facing = $state({ dx: 0, dy: 1 });
+    let facing = $state<FacingDirection>({ dx: 0, dy: 1 });
 
     const W = CANVAS.width;
     const H = CANVAS.height;
@@ -26,7 +34,7 @@
     }
 
     function characterConfig(c: Character) {
-        return CHARACTERS[c.type];
+        return CHARACTER_STATS[c.type as CharacterId];
     }
 
     const FACING_LABELS: Record<string, string> = {
@@ -39,15 +47,6 @@
         '-1,0': 'W',
         '-1,-1': 'NW',
     };
-
-    function snapEightDirection(dx: number, dy: number): { dx: number; dy: number } {
-        const sx = Math.sign(dx);
-        const sy = Math.sign(dy);
-        if (sx === 0) return { dx: 0, dy: sy };
-        if (sy === 0) return { dx: sx, dy: 0 };
-        const inv = 1 / Math.SQRT2;
-        return { dx: sx * inv, dy: sy * inv };
-    }
 
     function facingLabel(): string {
         const key = `${Math.sign(facing.dx)},${Math.sign(facing.dy)}`;
@@ -123,55 +122,15 @@
         frameId = requestAnimationFrame(loop);
     }
 
-    function drawCharacterShadow(ctx: CanvasRenderingContext2D, c: Character) {
-        const { x, y, size, color } = c;
-        const r = size / 2;
-
-        // Soft outer halo — reads as a cast shadow on the ground
-        const halo = ctx.createRadialGradient(x, y, r * 0.15, x, y, r * 1.05);
-        halo.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
-        halo.addColorStop(0.55, 'rgba(15, 23, 42, 0.14)');
-        halo.addColorStop(1, 'rgba(15, 23, 42, 0)');
-        ctx.fillStyle = halo;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 1.05, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Core shadow blob — slightly tinted by character color
-        const core = ctx.createRadialGradient(x, y, 0, x, y, r * 0.72);
-        core.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
-        core.addColorStop(0.85, `${color}55`);
-        core.addColorStop(1, 'rgba(15, 23, 42, 0.22)');
-        ctx.fillStyle = core;
-        ctx.beginPath();
-        ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Facing hint — short line from center
-        const nx = facing.dx;
-        const ny = facing.dy;
-        if (nx !== 0 || ny !== 0) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + nx * r * 0.55, y + ny * r * 0.55);
-            ctx.stroke();
-        }
-    }
-
     function drawGround(ctx: CanvasRenderingContext2D) {
         const tile = 48;
 
-        // Soft base gradient — slightly darker toward the bottom (camera side)
         const grad = ctx.createLinearGradient(0, 0, 0, H);
         grad.addColorStop(0, '#f1f5f9');
         grad.addColorStop(1, '#e2e8f0');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
-        // Subtle checker tiles — reads as a floor without forced perspective
         for (let ty = 0; ty < H + tile; ty += tile) {
             for (let tx = 0; tx < W + tile; tx += tile) {
                 const even = ((tx / tile) + (ty / tile)) % 2 === 0;
@@ -180,7 +139,6 @@
             }
         }
 
-        // Light grid lines on top
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
         ctx.lineWidth = 1;
         for (let gx = 0; gx <= W; gx += tile) {
@@ -207,7 +165,7 @@
             ctx.globalAlpha = 0.5;
         }
 
-        drawCharacterShadow(ctx, character);
+        drawCharacterVisual(ctx, character, facing, sprites, { showRange: true });
         ctx.globalAlpha = 1;
 
         ctx.fillStyle = '#000';
@@ -238,6 +196,10 @@
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
         window.addEventListener('keyup', onKeyup);
+
+        loadCharacterSprites('mage').then((loaded) => {
+            sprites = loaded;
+        });
 
         return () => {
             if (frameId) cancelAnimationFrame(frameId);
@@ -273,7 +235,7 @@
             <h3 class="text-lg font-bold mb-2">Controls</h3>
             <p class="text-sm text-gray-500">WASD/Arrows: Move</p>
             <p class="text-sm text-gray-500">Shift: Sprint (2x speed)</p>
-            <p class="text-sm text-gray-500">Render: circular shadow</p>
+            <p class="text-sm text-gray-500">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={takeDamage}>Take Damage (-1 life)</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={healFull}>Full Heal</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={resetCharacter}>Reset</button>
@@ -286,6 +248,7 @@
                 <p class="text-sm text-gray-500">Max Lives: {config.maxLives}</p>
                 <p class="text-sm text-gray-500">Speed: {config.speed} px/s</p>
                 <p class="text-sm text-gray-500">Shoot cooldown: {config.shootCooldown}ms</p>
+                <p class="text-sm text-gray-500">Range: {config.range}px</p>
                 <p class="text-sm text-gray-500">Invuln: {config.invincibleFrames}ms</p>
             {/if}
         </div>

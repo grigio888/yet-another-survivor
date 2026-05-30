@@ -2,6 +2,7 @@
 // Controls wave progression, enemy creation, and spawn positions
 
 import { CANVAS, WAVES } from '../config/index.js';
+import { sortByDepth } from '../rendering/depthSort.js';
 import { Grunt, Shooter, Chief, type Enemy } from '../entities/enemies/index.js';
 
 // Probability weights for enemy types at each wave tier
@@ -220,7 +221,7 @@ export class SpawningSystem {
      * Draw all active enemies on the canvas.
      */
     drawAll(ctx: CanvasRenderingContext2D): void {
-        for (const enemy of this.enemies) {
+        for (const enemy of sortByDepth(this.enemies)) {
             enemy.draw(ctx);
         }
     }

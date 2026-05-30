@@ -1,6 +1,5 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
-    import { Mage } from '$lib/game/entities/characters';
-    import { CHARACTERS } from '$lib/game/config/index';
+    import { Mage, MAGE_STATS } from '$lib/game/entities/characters';
 
     describe('Mage', () => {
         let character: Mage;
@@ -15,11 +14,12 @@
                 expect(character.lastShot).toBe(0);
                 expect(character.invincibleUntil).toBe(0);
 
-                expect(character.hp).toBe(CHARACTERS.mage.maxHp);
-                expect(character.maxHp).toBe(CHARACTERS.mage.maxHp);
-                expect(character.speed).toBe(CHARACTERS.mage.speed);
-                expect(character.color).toBe(CHARACTERS.mage.color);
+                expect(character.hp).toBe(MAGE_STATS.maxHp);
+                expect(character.maxHp).toBe(MAGE_STATS.maxHp);
+                expect(character.speed).toBe(MAGE_STATS.speed);
+                expect(character.color).toBe(MAGE_STATS.color);
                 expect(character.type).toBe('mage');
+                expect(character.range).toBe(MAGE_STATS.range);
             });
         });
 
@@ -29,7 +29,7 @@
             it('moves character based on direction vector', () => {
                 character.update(dt, { dx: 1, dy: 0, sprint: false });
 
-                expect(character.x).toBeCloseTo(400 + CHARACTERS.mage.speed * dt, 0);
+                expect(character.x).toBeCloseTo(400 + MAGE_STATS.speed * dt, 0);
                 expect(character.y).toBeCloseTo(300, 0);
             });
 
@@ -46,13 +46,13 @@
             });
 
             it('identifies when cooldown expired and shot allowed', () => {
-                character.lastShot = CHARACTERS.mage.shootCooldown + 1;
+                character.lastShot = MAGE_STATS.shootCooldown + 1;
 
                 expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
 
             it('rejects shot when cooldown not expired', () => {
-                character.lastShot = CHARACTERS.mage.shootCooldown - 1;
+                character.lastShot = MAGE_STATS.shootCooldown - 1;
 
                 expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
@@ -67,7 +67,7 @@
                 character.takeDamage(100);
 
                 expect(character.lives).toBe(2);
-                expect(character.hp).toBe(CHARACTERS.mage.maxHp);
+                expect(character.hp).toBe(MAGE_STATS.maxHp);
             });
         });
 
@@ -87,6 +87,42 @@
             it('returns null when target is at same position', () => {
                 expect(character.shoot({ x: character.x, y: character.y })).toBeNull();
             });
+
+            it('returns null when target is out of range', () => {
+                const outOfRange = {
+                    x: character.x + MAGE_STATS.range + 50,
+                    y: character.y,
+                };
+
+                expect(character.shoot(outOfRange)).toBeNull();
+            });
+        });
+
+        describe('findNearestInRange', () => {
+            it('returns the closest target within range', () => {
+                const near = { x: character.x + 100, y: character.y };
+                const far = { x: character.x + MAGE_STATS.range + 100, y: character.y };
+
+                expect(character.findNearestInRange([far, near])).toBe(near);
+            });
+
+            it('returns null when no targets are in range', () => {
+                const far = { x: character.x + MAGE_STATS.range + 1, y: character.y };
+
+                expect(character.findNearestInRange([far])).toBeNull();
+            });
+        });
+
+        describe('isInRange', () => {
+            it('returns true for targets within range', () => {
+                expect(character.isInRange({ x: character.x + 100, y: character.y })).toBe(true);
+            });
+
+            it('returns false for targets beyond range', () => {
+                expect(
+                    character.isInRange({ x: character.x + MAGE_STATS.range + 1, y: character.y })
+                ).toBe(false);
+            });
         });
 
         describe('draw', () => {
@@ -94,7 +130,7 @@
                 const ctx = createMockContext();
                 character.draw(ctx);
 
-                expect(ctx.fillStyle).toBe(CHARACTERS.mage.color);
+                expect(ctx.fillStyle).toBe(MAGE_STATS.color);
                 expect(ctx.fillRect).toHaveBeenCalled();
                 expect(ctx.strokeStyle).toBe('#ffffff');
                 expect(ctx.stroke).toHaveBeenCalled();

@@ -7,24 +7,6 @@ export const CANVAS = {
     fps: 60,
 };
 
-// Playable character types and their stats
-export const CHARACTERS = {
-    mage: {
-        type: 'mage',
-        maxLives: 3,
-        maxHp: 70,
-        size: 20,
-        color: '#60a5fa', // blue
-        speed: 160, // pixels per second
-        shootCooldown: 400, // ms between auto-shoots
-        invincibleFrames: 1000, // ms of iframe after hit
-        projectileSpeed: 120, // pixels per second
-        projectileDamage: 25,
-    },
-} as const;
-
-export type CharacterId = keyof typeof CHARACTERS;
-
 // Wave settings
 export const WAVES = {
     initialEnemies: 3,
