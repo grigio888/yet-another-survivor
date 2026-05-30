@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { Character } from '$lib/game/entities/Character';
-    import { PLAYER, CANVAS } from '$lib/game/config';
+    import { Mage, type Character } from '$lib/game/entities/characters';
+    import { CHARACTERS, CANVAS, type CharacterId } from '$lib/game/config';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
@@ -15,6 +15,19 @@
 
     const W = CANVAS.width;
     const H = CANVAS.height;
+
+    const characterClasses = [
+        { label: 'Mage', cls: Mage, type: 'mage' as CharacterId },
+    ];
+
+    function createCharacter(type: CharacterId): Character {
+        if (type === 'mage') return new Mage(W / 2, H / 2);
+        return new Mage(W / 2, H / 2);
+    }
+
+    function characterConfig(c: Character) {
+        return CHARACTERS[c.type];
+    }
 
     const FACING_LABELS: Record<string, string> = {
         '0,-1': 'N',
@@ -78,15 +91,20 @@
 
     function healFull() {
         if (character) {
+            const config = characterConfig(character);
             character.hp = character.maxHp;
-            character.lives = PLAYER.maxLives;
+            character.lives = config.maxLives;
         }
     }
 
-    function resetCharacter() {
-        character = new Character({ x: W / 2, y: H / 2 });
+    function resetCharacter(type: CharacterId = character?.type ?? 'mage') {
+        character = createCharacter(type);
         facing = { dx: 0, dy: 1 };
         timeAlive = 0;
+    }
+
+    function switchCharacter(type: CharacterId) {
+        resetCharacter(type);
     }
 
     function loop(now: number) {
@@ -105,73 +123,42 @@
         frameId = requestAnimationFrame(loop);
     }
 
-    function drawCharacterThreeQuarter(ctx: CanvasRenderingContext2D, c: Character) {
+    function drawCharacterShadow(ctx: CanvasRenderingContext2D, c: Character) {
         const { x, y, size, color } = c;
         const r = size / 2;
-        const bodyW = r * 1.05;
-        const bodyH = r * 1.15;
-        const headR = r * 0.42;
 
-        // Ground shadow — anchor point for the 3/4 view
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+        // Soft outer halo — reads as a cast shadow on the ground
+        const halo = ctx.createRadialGradient(x, y, r * 0.15, x, y, r * 1.05);
+        halo.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
+        halo.addColorStop(0.55, 'rgba(15, 23, 42, 0.14)');
+        halo.addColorStop(1, 'rgba(15, 23, 42, 0)');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.ellipse(x, y + r * 0.55, bodyW * 0.95, r * 0.38, 0, 0, Math.PI * 2);
+        ctx.arc(x, y, r * 1.05, 0, Math.PI * 2);
         ctx.fill();
 
-        // Legs / lower body (slightly toward camera / bottom of screen)
-        ctx.fillStyle = shadeColor(color, -28);
+        // Core shadow blob — slightly tinted by character color
+        const core = ctx.createRadialGradient(x, y, 0, x, y, r * 0.72);
+        core.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
+        core.addColorStop(0.85, `${color}55`);
+        core.addColorStop(1, 'rgba(15, 23, 42, 0.22)');
+        ctx.fillStyle = core;
         ctx.beginPath();
-        ctx.ellipse(x, y + r * 0.28, bodyW * 0.72, r * 0.38, 0, 0, Math.PI * 2);
+        ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
         ctx.fill();
 
-        // Torso — tapered so the top reads narrower (light 3/4 angle)
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(x - bodyW * 0.62, y + r * 0.05);
-        ctx.lineTo(x + bodyW * 0.62, y + r * 0.05);
-        ctx.lineTo(x + bodyW * 0.48, y - bodyH * 0.55);
-        ctx.lineTo(x - bodyW * 0.48, y - bodyH * 0.55);
-        ctx.closePath();
-        ctx.fill();
-
-        // Shoulder highlight on the lit side
-        ctx.fillStyle = shadeColor(color, 18);
-        ctx.beginPath();
-        ctx.ellipse(x + bodyW * 0.18, y - r * 0.08, r * 0.28, r * 0.18, -0.35, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Head sits above torso, offset slightly toward the camera
-        ctx.fillStyle = shadeColor(color, 12);
-        ctx.beginPath();
-        ctx.arc(x, y - bodyH * 0.72, headR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Gun/arm points in the last snapped 8-way facing direction
+        // Facing hint — short line from center
         const nx = facing.dx;
         const ny = facing.dy;
-        const gunX = x + nx * r * 0.55;
-        const gunY = y - r * 0.05 + ny * r * 0.55;
-
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x + nx * r * 0.15, y + ny * r * 0.05);
-        ctx.lineTo(gunX, gunY);
-        ctx.stroke();
-
-        ctx.fillStyle = '#334155';
-        ctx.beginPath();
-        ctx.arc(gunX, gunY, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    function shadeColor(hex: string, amount: number): string {
-        const n = parseInt(hex.replace('#', ''), 16);
-        const r = Math.min(255, Math.max(0, (n >> 16) + amount));
-        const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amount));
-        const b = Math.min(255, Math.max(0, (n & 0xff) + amount));
-        return `rgb(${r}, ${g}, ${b})`;
+        if (nx !== 0 || ny !== 0) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + nx * r * 0.55, y + ny * r * 0.55);
+            ctx.stroke();
+        }
     }
 
     function drawGround(ctx: CanvasRenderingContext2D) {
@@ -220,29 +207,25 @@
             ctx.globalAlpha = 0.5;
         }
 
-        drawCharacterThreeQuarter(ctx, character);
+        drawCharacterShadow(ctx, character);
         ctx.globalAlpha = 1;
 
         ctx.fillStyle = '#000';
         ctx.font = '12px Poppins, sans-serif';
-        ctx.fillText(`pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`, 5, 15);
-        ctx.fillText(`hp: ${character.hp} / ${character.maxHp}`, 5, 30);
-        ctx.fillText(`lives: ${character.lives}`, 5, 45);
-        ctx.fillText(`invincible: ${invincible}`, 5, 60);
-        ctx.fillText(`lastShot: ${character.lastShot.toFixed(0)}ms`, 5, 75);
-        ctx.fillText(`speed: ${movement.sprint ? PLAYER.speed * 2 : PLAYER.speed}`, 5, 90);
-        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 105);
-        ctx.fillText(`view: light 3/4 top-down`, 5, 120);
+        ctx.fillText(`type: ${character.type}`, 5, 15);
+        ctx.fillText(`pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`, 5, 30);
+        ctx.fillText(`hp: ${character.hp} / ${character.maxHp}`, 5, 45);
+        ctx.fillText(`lives: ${character.lives}`, 5, 60);
+        ctx.fillText(`invincible: ${invincible}`, 5, 75);
+        ctx.fillText(`lastShot: ${character.lastShot.toFixed(0)}ms`, 5, 90);
+        ctx.fillText(`speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`, 5, 105);
+        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 120);
         ctx.fillText(`facing: ${facingLabel()}`, 5, 135);
 
         if (invincible) {
             ctx.font = '14px monospace';
             ctx.fillText('INVULNERABLE', character.x + 20, character.y);
         }
-
-        // Foot anchor / collision center
-        ctx.fillStyle = '#fbbf24';
-        ctx.fillRect(character.x - 1, character.y - 1, 2, 2);
     }
 
     $effect(() => {
@@ -250,7 +233,7 @@
             canvas.width = W;
             canvas.height = H;
         }
-        character = new Character({ x: W / 2, y: H / 2 });
+        character = createCharacter('mage');
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
@@ -273,20 +256,38 @@
         class="flex flex-col justify-between gap-2 p-4 w-64 border-r border-(--border-color)"
     >
         <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold mb-2">Character</h3>
+            <div class="flex flex-wrap gap-2">
+                {#each characterClasses as cc}
+                    <button
+                        class="px-3 py-1 rounded-md text-sm transition-colors duration-200 {character?.type === cc.type ? 'bg-(--theme-color-600) text-white' : 'bg-gray-200 hover:bg-gray-300'}"
+                        onclick={() => switchCharacter(cc.type)}
+                    >
+                        {cc.label}
+                    </button>
+                {/each}
+            </div>
+            <p class="text-sm text-gray-500">Active: {character?.type ?? '—'}</p>
+        </div>
+        <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Controls</h3>
             <p class="text-sm text-gray-500">WASD/Arrows: Move</p>
             <p class="text-sm text-gray-500">Shift: Sprint (2x speed)</p>
-            <p class="text-sm text-gray-500">View: light 3/4 top-down (debug render)</p>
+            <p class="text-sm text-gray-500">Render: circular shadow</p>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={takeDamage}>Take Damage (-1 life)</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={healFull}>Full Heal</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={resetCharacter}>Reset</button>
         </div>
         <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Stats</h3>
-            <p class="text-sm text-gray-500">Max Lives: {PLAYER.maxLives}</p>
-            <p class="text-sm text-gray-500">Speed: {PLAYER.speed} px/s</p>
-            <p class="text-sm text-gray-500">Shoot cooldown: {PLAYER.shootCooldown}ms</p>
-            <p class="text-sm text-gray-500">Invuln: {PLAYER.invincibleFrames}ms</p>
+            {#if character}
+                {@const config = characterConfig(character)}
+                <p class="text-sm text-gray-500">Type: {character.type}</p>
+                <p class="text-sm text-gray-500">Max Lives: {config.maxLives}</p>
+                <p class="text-sm text-gray-500">Speed: {config.speed} px/s</p>
+                <p class="text-sm text-gray-500">Shoot cooldown: {config.shootCooldown}ms</p>
+                <p class="text-sm text-gray-500">Invuln: {config.invincibleFrames}ms</p>
+            {/if}
         </div>
     </div>
     <canvas

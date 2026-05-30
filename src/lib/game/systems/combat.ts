@@ -5,8 +5,8 @@
 import { ENEMIES, SCORING } from '../config/index.js';
 import type { Projectile, CollisionPair, CharacterHit, MeleeHit } from './collision.js';
 import { findCollisions, findCharacterHits, findMeleeHits } from './collision.js';
-import { Enemy } from '../entities/Enemy.js';
-import { Character } from '../entities/Character.js';
+import { Enemy } from '../entities/enemies/Enemy.js';
+import { Character } from '../entities/characters/Character.js';
 
 export interface KillRecord {
     enemyIndex: number;

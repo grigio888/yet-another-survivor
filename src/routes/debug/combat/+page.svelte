@@ -1,10 +1,7 @@
 <script lang="ts">
-    import { Character } from '$lib/game/entities/Character';
-    import { Grunt } from '$lib/game/entities/Grunt';
-    import { Shooter } from '$lib/game/entities/Shooter';
-    import { Chief } from '$lib/game/entities/Chief';
-    import type { Enemy } from '$lib/game/entities/Enemy';
-    import { ENEMIES, CANVAS, PLAYER } from '$lib/game/config';
+    import { Mage, type Character } from '$lib/game/entities/characters';
+    import { Grunt, Shooter, Chief, type Enemy } from '$lib/game/entities/enemies';
+    import { ENEMIES, CANVAS, CHARACTERS } from '$lib/game/config';
     import { projectileHitsEntity, separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
@@ -83,7 +80,7 @@
         enemyProjectiles = [];
         if (character) {
             character.hp = character.maxHp;
-            character.lives = PLAYER.maxLives;
+            character.lives = CHARACTERS.mage.maxLives;
             character.invincibleUntil = 0;
             character.lastShot = 0;
         }
@@ -250,7 +247,7 @@
             canvas.height = H;
         }
 
-        character = new Character({ x: W / 2, y: H / 2 });
+        character = new Mage(W / 2, H / 2);
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);

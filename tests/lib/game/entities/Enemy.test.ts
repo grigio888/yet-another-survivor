@@ -1,5 +1,5 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
-    import { Enemy } from '$lib/game/entities/Enemy';
+    import { Enemy } from '$lib/game/entities/enemies/Enemy';
 
     describe('Enemy', () => {
         let enemy: Enemy;

@@ -1,12 +1,12 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
-    import { Character } from '$lib/game/entities/Character';
-    import { PLAYER, ENEMIES } from '$lib/game/config/index';
+    import { Mage } from '$lib/game/entities/characters';
+    import { CHARACTERS } from '$lib/game/config/index';
 
-    describe('Character', () => {
-        let character: Character;
+    describe('Mage', () => {
+        let character: Mage;
 
         beforeEach(() => {
-            character = new Character({ x: 400, y: 300 });
+            character = new Mage(400, 300);
         });
 
         describe('constructor', () => {
@@ -15,10 +15,11 @@
                 expect(character.lastShot).toBe(0);
                 expect(character.invincibleUntil).toBe(0);
 
-                expect(character.hp).toBe(100);
-                expect(character.maxHp).toBe(100);
-                expect(character.speed).toBe(200);
-                expect(character.color).toBe('#60a5fa');
+                expect(character.hp).toBe(CHARACTERS.mage.maxHp);
+                expect(character.maxHp).toBe(CHARACTERS.mage.maxHp);
+                expect(character.speed).toBe(CHARACTERS.mage.speed);
+                expect(character.color).toBe(CHARACTERS.mage.color);
+                expect(character.type).toBe('mage');
             });
         });
 
@@ -28,7 +29,7 @@
             it('moves character based on direction vector', () => {
                 character.update(dt, { dx: 1, dy: 0, sprint: false });
 
-                expect(character.x).toBeCloseTo(400 + 200 * dt, 0);
+                expect(character.x).toBeCloseTo(400 + CHARACTERS.mage.speed * dt, 0);
                 expect(character.y).toBeCloseTo(300, 0);
             });
 
@@ -36,7 +37,7 @@
                 character.update(dt, { dx: 1, dy: 0, sprint: true });
                 const newSpeed = character.x;
 
-                character = new Character({ x: 400, y: 300 });
+                character = new Mage(400, 300);
                 character.update(dt, { dx: 1, dy: 0, sprint: false });
                 const regularSpeed = character.x;
 
@@ -45,13 +46,13 @@
             });
 
             it('identifies when cooldown expired and shot allowed', () => {
-                character.lastShot = PLAYER.shootCooldown + 1;
+                character.lastShot = CHARACTERS.mage.shootCooldown + 1;
 
                 expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
 
             it('rejects shot when cooldown not expired', () => {
-                character.lastShot = PLAYER.shootCooldown - 1;
+                character.lastShot = CHARACTERS.mage.shootCooldown - 1;
 
                 expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
@@ -66,7 +67,7 @@
                 character.takeDamage(100);
 
                 expect(character.lives).toBe(2);
-                expect(character.hp).toBe(100); // HP resets
+                expect(character.hp).toBe(CHARACTERS.mage.maxHp);
             });
         });
 
@@ -93,7 +94,7 @@
                 const ctx = createMockContext();
                 character.draw(ctx);
 
-                expect(ctx.fillStyle).toBe('#60a5fa');
+                expect(ctx.fillStyle).toBe(CHARACTERS.mage.color);
                 expect(ctx.fillRect).toHaveBeenCalled();
                 expect(ctx.strokeStyle).toBe('#ffffff');
                 expect(ctx.stroke).toHaveBeenCalled();

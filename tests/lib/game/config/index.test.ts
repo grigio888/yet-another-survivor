@@ -1,5 +1,5 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
-    import { CANVAS, PLAYER, WAVES, ENEMIES, SCORING } from '$lib/game/config/index';
+    import { CANVAS, CHARACTERS, WAVES, ENEMIES, SCORING } from '$lib/game/config/index';
 
     describe('CANVAS', () => {
         it('has correct dimensions', () => {
@@ -12,26 +12,32 @@
         });
     });
 
-    describe('PLAYER', () => {
-        it('has maxLives set to 3', () => {
-            expect(PLAYER.maxLives).toBe(3);
-        });
+    describe('CHARACTERS', () => {
+        describe('mage', () => {
+            it('has type defined', () => {
+                expect(CHARACTERS.mage.type).toBe('mage');
+            });
 
-        it('has speed defined', () => {
-            expect(PLAYER.speed).toBe(200);
-        });
+            it('has maxLives set to 3', () => {
+                expect(CHARACTERS.mage.maxLives).toBe(3);
+            });
 
-        it('has shootCooldown defined', () => {
-            expect(PLAYER.shootCooldown).toBe(400);
-        });
+            it('has speed defined', () => {
+                expect(CHARACTERS.mage.speed).toBe(160);
+            });
 
-        it('has invincible frames defined', () => {
-            expect(PLAYER.invincibleFrames).toBe(1000);
-        });
+            it('has shootCooldown defined', () => {
+                expect(CHARACTERS.mage.shootCooldown).toBe(400);
+            });
 
-        it('projectile has speed and damage', () => {
-            expect(PLAYER.projectileSpeed).toBe(400);
-            expect(PLAYER.projectileDamage).toBe(25);
+            it('has invincible frames defined', () => {
+                expect(CHARACTERS.mage.invincibleFrames).toBe(1000);
+            });
+
+            it('projectile has speed and damage', () => {
+                expect(CHARACTERS.mage.projectileSpeed).toBe(120);
+                expect(CHARACTERS.mage.projectileDamage).toBe(25);
+            });
         });
     });
 

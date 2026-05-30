@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { processCombat, CombatStats, KillRecord } from '$lib/game/systems/combat.js';
-import { Character } from '$lib/game/entities/Character.js';
-import { Enemy } from '$lib/game/entities/Enemy.js';
+import { Mage, type Character } from '$lib/game/entities/characters/index.js';
+import { Enemy } from '$lib/game/entities/enemies/Enemy.js';
 import { ENEMIES, SCORING } from '$lib/game/config/index.js';
 import type { Projectile } from '$lib/game/systems/collision.js';
 
@@ -26,7 +26,7 @@ describe('Combat System', () => {
 
         beforeEach(() => {
             stats = createMockStats();
-            character = new Character({ x: 400, y: 300 });
+            character = new Mage(400, 300);
             enemies = [];
             playerProjectiles = [];
             enemyProjectiles = [];

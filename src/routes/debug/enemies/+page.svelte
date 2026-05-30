@@ -1,8 +1,5 @@
 <script lang="ts">
-    import { Grunt } from '$lib/game/entities/Grunt';
-    import { Shooter } from '$lib/game/entities/Shooter';
-    import { Chief } from '$lib/game/entities/Chief';
-    import type { Enemy } from '$lib/game/entities/Enemy';
+    import { Grunt, Shooter, Chief, type Enemy } from '$lib/game/entities/enemies';
     import { ENEMIES, CANVAS } from '$lib/game/config';
     import { separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';

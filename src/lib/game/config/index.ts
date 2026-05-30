@@ -7,18 +7,23 @@ export const CANVAS = {
     fps: 60,
 };
 
-// Player settings
-export const PLAYER = {
-    maxLives: 3,
-    maxHp: 100,
-    size: 20, // render/collision size in pixels
-    color: '#60a5fa', // blue
-    speed: 200, // pixels per second
-    shootCooldown: 400, // ms between auto-shoots
-    invincibleFrames: 1000, // ms of iframe after hit
-    projectileSpeed: 400, // pixels per second
-    projectileDamage: 25,
-};
+// Playable character types and their stats
+export const CHARACTERS = {
+    mage: {
+        type: 'mage',
+        maxLives: 3,
+        maxHp: 70,
+        size: 20,
+        color: '#60a5fa', // blue
+        speed: 160, // pixels per second
+        shootCooldown: 400, // ms between auto-shoots
+        invincibleFrames: 1000, // ms of iframe after hit
+        projectileSpeed: 120, // pixels per second
+        projectileDamage: 25,
+    },
+} as const;
+
+export type CharacterId = keyof typeof CHARACTERS;
 
 // Wave settings
 export const WAVES = {
@@ -68,7 +73,3 @@ export const SCORING = {
     comboMultiplier: 1.2, // multiplier per consecutive kill streak
     comboDecayTime: 3000, // ms before combo resets
 };
-
-// Playable character definitions
-export type { CharacterConfig, CharacterId } from './characters/index.js';
-export { CHARACTERS, mage } from './characters/index.js';

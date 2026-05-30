@@ -15,11 +15,14 @@
 
     ```
     Entity (base class)
-    ├── Character      # The player
-    └── Enemy          # Base for all enemies
+    ├── characters/
+    │   ├── Character  # Base for all playable characters
+    │   └── Mage       # Ranged spellcaster
+    └── enemies/
+        ├── Enemy      # Base for all enemies
         ├── Grunt      # Melee attacker
-        ├── Shooter    # Ranged attacker  
-        └── Chief       # Tanky boss
+        ├── Shooter    # Ranged attacker
+        └── Chief      # Tanky boss
     ```
 
     ## Classes
@@ -46,18 +49,29 @@
 
     ### Character
 
-    The player class. Inherits from Entity and adds player-specific features:
+    Base class for playable characters. Inherits from Entity and adds player-specific features:
 
     **Extra Properties:**
-    - `lives` - Number of lives remaining (starts at PLAYER.maxLives)
+    - `type` - Character classification (mage, etc.)
+    - `lives` - Number of lives remaining (from `CHARACTERS` config)
     - `lastShot` - Timestamp of last shot taken
     - `invincibleUntil` - Timestamp until invulnerability expires
 
     **Extra Methods:**
     - `update(dt, movement)` - Move character based on input direction
     - `shoot(target)` - Create projectile aimed at closest enemy
-    - `takeDamage(amount)` - Lore from lives on hit, grants invulnerability frames
+    - `takeDamage(amount)` - Lose a life on hit, grants invulnerability frames
     - `isInvincible()` - Check if currently invulnerable
+
+    ### Mage
+
+    Ranged spellcaster. Inherits from Character. Stats come from `CHARACTERS.mage` in config.
+
+    Usage:
+    ```typescript
+    import { Mage } from '$lib/game/entities/characters';
+    const mage = new Mage(400, 300);
+    ```
 
     ### Enemy
 
@@ -83,7 +97,7 @@
 
     Usage:
     ```typescript
-    import { Grunt } from '$lib/game/entities/Grunt';
+    import { Grunt } from '$lib/game/entities/enemies';
     const grunt = new Grunt(100, 200); // Spawn at position
     
     // Moves toward player position
@@ -100,7 +114,7 @@
 
     Usage:
     ```typescript
-    import { Shooter } from '$lib/game/entities/Shooter';
+    import { Shooter } from '$lib/game/entities/enemies';
     const shooter = new Shooter(x, y);
     
     // Returns null if not ready to shoot, or projectile if targets lock acquired

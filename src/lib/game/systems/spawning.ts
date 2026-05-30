@@ -2,10 +2,7 @@
 // Controls wave progression, enemy creation, and spawn positions
 
 import { CANVAS, WAVES } from '../config/index.js';
-import { Grunt } from '../entities/Grunt.js';
-import { Shooter } from '../entities/Shooter.js';
-import { Chief } from '../entities/Chief.js';
-import type { Enemy } from '../entities/Enemy.js';
+import { Grunt, Shooter, Chief, type Enemy } from '../entities/enemies/index.js';
 
 // Probability weights for enemy types at each wave tier
 // Keys represent the minimum wave number where that distribution applies
