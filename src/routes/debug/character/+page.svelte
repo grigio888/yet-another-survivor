@@ -8,6 +8,7 @@
         type CharacterSpriteSet,
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
+    import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
@@ -213,7 +214,7 @@
     Character Debug
 </h1>
 
-<div class="flex w-fit mx-auto rounded-md overflow-hidden border border-(--border-color)">
+<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
     <div
         class="flex flex-col justify-between gap-2 p-4 w-64 border-r border-(--border-color)"
     >
@@ -253,9 +254,9 @@
             {/if}
         </div>
     </div>
-    <canvas
-        bind:this={canvas}
-    ></canvas>
+    <GameCanvasFrame width={W} height={H}>
+        <canvas bind:this={canvas}></canvas>
+    </GameCanvasFrame>
 </div>
 
 

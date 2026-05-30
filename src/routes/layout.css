@@ -193,3 +193,32 @@ hr.vr {
 	pointer-events: none !important;
 	opacity: 0.5 !important;
 }
+
+/* Game debug / arena canvas — native resolution, CSS scales without stretch */
+.game-canvas-frame {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1 1 auto;
+	min-width: 0;
+	align-self: center;
+	padding: 0.5rem;
+	background: var(--bg-color-900);
+}
+
+.game-canvas-frame canvas {
+	display: block;
+	width: min(var(--game-canvas-width, 800px), 100%);
+	height: auto;
+	aspect-ratio: var(--game-canvas-aspect, 800 / 600);
+	max-height: min(var(--game-canvas-height, 600px), calc(100vh - 12rem));
+	image-rendering: pixelated;
+}
+
+.debug-stage {
+	display: flex;
+	width: fit-content;
+	max-width: min(100%, calc(100vw - 2rem));
+	margin-inline: auto;
+	align-items: flex-start;
+}

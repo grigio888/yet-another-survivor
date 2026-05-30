@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { processCombat, CombatStats, KillRecord } from '$lib/game/systems/combat.js';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { processCombat, type CombatStats } from '$lib/game/systems/combat.js';
 import { Mage, type Character } from '$lib/game/entities/characters/index.js';
 import { Enemy } from '$lib/game/entities/enemies/Enemy.js';
 import { ENEMIES, SCORING } from '$lib/game/config/index.js';
@@ -153,10 +153,8 @@ describe('Combat System', () => {
         });
 
         it('does not damage player if invincible', () => {
-            // Set player invincible
             character.invincibleUntil = Date.now() + 5000;
 
-            // Create enemy projectile that would hit player
             enemyProjectiles.push({
                 x: 398,
                 y: 300,
@@ -168,21 +166,19 @@ describe('Combat System', () => {
             const prevLives = character.lives;
             const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
 
-            // Player should still take damage through the combat system
-            // (invincibility is handled in Character.takeDamage)
             expect(result.characterHit).toBe(true);
-            // Lives may or may not change depending on how invincibility interacts
+            expect(character.lives).toBe(prevLives);
+            expect(result.combat.enemyProjectilesToRemove.has(0)).toBe(true);
         });
 
         it('applies melee damage from enemies touching player', () => {
-            // Create enemy touching player
             enemies.push(new Enemy({
-                x: 410, // Close to player (size 20)
+                x: 410,
                 y: 300,
                 type: 'grunt',
                 hp: 30,
                 speed: 80,
-                damage: 1, // Grunts deal 1 life of damage
+                damage: 1,
                 size: 24,
                 color: '#4ade8f',
             }));
@@ -190,9 +186,65 @@ describe('Combat System', () => {
             const prevLives = character.lives;
             const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
 
-            // Player should take melee damage
             expect(result.characterHit).toBe(true);
             expect(result.characterDamage).toBe(1);
+            expect(character.lives).toBe(prevLives - 1);
+        });
+
+        it('registers only one kill when multiple projectiles hit the same enemy', () => {
+            const enemy = new Enemy({
+                x: 500,
+                y: 300,
+                type: 'grunt',
+                hp: 20,
+                speed: 80,
+                damage: 1,
+                size: 24,
+                color: '#4ade8f',
+            });
+            enemies.push(enemy);
+
+            playerProjectiles.push(
+                {
+                    x: 496,
+                    y: 300,
+                    direction: { dx: 1, dy: 0 },
+                    speed: 400,
+                    damage: 25,
+                },
+                {
+                    x: 498,
+                    y: 300,
+                    direction: { dx: 1, dy: 0 },
+                    speed: 400,
+                    damage: 25,
+                },
+            );
+
+            const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
+
+            expect(result.combat.kills).toHaveLength(1);
+            expect(stats.kills).toBe(1);
+        });
+
+        it('resets combo after decay window without kills', () => {
+            stats.combo = 4;
+            stats.lastKillTime = Date.now() - SCORING.comboDecayTime - 1;
+
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
+
+            expect(stats.combo).toBe(0);
+        });
+
+        it('does not reset combo timer when there are no kills', () => {
+            stats.combo = 2;
+            const lastKillTime = Date.now() - 500;
+            stats.lastKillTime = lastKillTime;
+
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
+
+            expect(stats.combo).toBe(2);
+            expect(stats.lastKillTime).toBe(lastKillTime);
         });
 
         it('updates time survived in stats', () => {
@@ -203,12 +255,11 @@ describe('Combat System', () => {
         });
 
         it('adds time-based score bonus', () => {
-            const prevScore = stats.score;
             const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 2.0);
 
-            // 2 seconds * 1 point per second = 2 bonus points
             const expectedBonus = Math.floor(2.0 * SCORING.timeBonusPerSec);
-            expect(result.combat.scoreGained).toBeGreaterThanOrEqual(expectedBonus);
+            expect(result.combat.scoreGained).toBe(expectedBonus);
+            expect(stats.score).toBe(expectedBonus);
         });
     });
 });

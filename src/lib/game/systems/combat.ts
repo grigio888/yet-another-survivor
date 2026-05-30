@@ -18,6 +18,7 @@ export interface CombatResult {
     kills: KillRecord[];
     scoreGained: number;
     projectilesToRemove: Set<number>;
+    enemyProjectilesToRemove: Set<number>;
 }
 
 export interface BattleResult {
@@ -63,11 +64,12 @@ function resolveProjectileDamage(
 
         if (!projectile || !enemy) continue;
 
+        const wasAlive = enemy.isAlive();
         const damageDealt = applyDamageToEnemy(enemy, projectile.damage);
 
         projectilesToRemove.add(pIndex);
 
-        if (!enemy.isAlive() && damageDealt > 0) {
+        if (wasAlive && !enemy.isAlive() && damageDealt > 0) {
             const enemyType = enemy.type;
             const enemyConfig = ENEMIES[enemyType as keyof typeof ENEMIES];
             const scoreValue = enemyConfig?.scoreValue || 10;
@@ -103,13 +105,16 @@ function updateCombatStats(
         stats.combo++;
     }
 
-    stats.lastKillTime = now();
-    stats.score += scoreGained;
+    if (kills.length > 0) {
+        stats.lastKillTime = now();
+    }
+
     stats.kills += kills.length;
     stats.timeSurvived += dt;
 
     const timeBonus = Math.floor(dt * SCORING.timeBonusPerSec);
     scoreGained += timeBonus;
+    stats.score += scoreGained;
 
     return scoreGained;
 }
@@ -139,10 +144,12 @@ export function processCombat(
 
     const characterHit = projectileCharCollisions.length > 0 || charEnemyCollisions.length > 0;
     let characterDamage = 0;
+    const enemyProjectilesToRemove = new Set<number>();
 
     if (characterHit) {
         for (const hit of projectileCharCollisions) {
             characterDamage += hit.damage;
+            enemyProjectilesToRemove.add(hit.pIndex);
         }
         for (const hit of charEnemyCollisions) {
             characterDamage += hit.damage;
@@ -158,6 +165,7 @@ export function processCombat(
             kills: playerKills,
             scoreGained,
             projectilesToRemove: playerProjectilesToRemove,
+            enemyProjectilesToRemove,
         },
         characterHit,
         characterDamage,

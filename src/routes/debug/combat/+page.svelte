@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Mage, CHARACTER_STATS, type Character } from '$lib/game/entities/characters';
-    import { Grunt, Shooter, Chief, type Enemy } from '$lib/game/entities/enemies';
-    import { ENEMIES, CANVAS } from '$lib/game/config';
+    import type { Enemy } from '$lib/game/entities/enemies';
+    import { ENEMIES, CANVAS, WAVES } from '$lib/game/config';
     import {
         loadCharacterSprites,
         snapEightDirection,
@@ -9,15 +9,18 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import { drawArenaEntities } from '$lib/game/rendering/arenaRender';
-    import { projectileHitsEntity, separateEntities } from '$lib/game/systems/collision';
+    import { separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
     import type { CombatStats } from '$lib/game/systems/combat';
+    import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
+    import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+
+    const spawning = new SpawningSystem();
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
-    let enemies = $state<Enemy[]>([]);
     let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
     let frameId = $state(0);
@@ -28,16 +31,22 @@
     let timeAlive = $state(0);
     let stats = $state<CombatStats>(createStats());
     let facing = $state<FacingDirection>({ dx: 0, dy: 1 });
+    let wavesActive = $state(false);
+    let waveSpawned = $state(0);
+    let waveQuota = $state(WAVES.initialEnemies);
+    let aliveEnemies = $state(0);
+    let combatLog = $state<string[]>([]);
 
-    const enemyClasses = [
-        { label: 'Grunt', cls: Grunt },
-        { label: 'Shooter', cls: Shooter },
-        { label: 'Chief', cls: Chief },
+    const enemyTypes: { label: string; type: EnemyType }[] = [
+        { label: 'Grunt', type: 'grunt' },
+        { label: 'Shooter', type: 'shooter' },
+        { label: 'Chief', type: 'chief' },
     ];
+
+    const COMBAT_TICK_DT = 1 / 60;
 
     const W = CANVAS.width;
     const H = CANVAS.height;
-    // How far a projectile may travel past the canvas before being culled
     const PROJECTILE_MARGIN = 50;
 
     function createStats(): CombatStats {
@@ -86,17 +95,86 @@
         facing = snapEightDirection(target.x - character!.x, target.y - character!.y);
     }
 
-    function addEnemy(type: string) {
-        if (type === 'grunt') enemies.push(new Grunt(Math.random() * W, Math.random() * H));
-        else if (type === 'shooter') enemies.push(new Shooter(Math.random() * W, Math.random() * H));
-        else if (type === 'chief') enemies.push(new Chief(Math.random() * W, Math.random() * H));
+    function applyCombatResult(result: ReturnType<typeof processCombat>) {
+        playerProjectiles = playerProjectiles.filter(
+            (p, i) => !result.combat.projectilesToRemove.has(i) && !offscreen(p)
+        );
+        enemyProjectiles = enemyProjectiles.filter(
+            (p, i) => !result.combat.enemyProjectilesToRemove.has(i) && !offscreen(p)
+        );
+        spawning.pruneDeadEnemies();
+        return result;
+    }
+
+    function addEnemy(type: EnemyType) {
+        spawning.spawnManualEnemy(type);
+        syncWaveHud();
+    }
+
+    function triggerCombat() {
+        if (!character) return;
+
+        const log: string[] = [];
+        const prevLives = character.lives;
+        const prevScore = stats.score;
+        const enemies = spawning.getEnemyList();
+
+        log.push(`Resolving combat: ${enemies.length} enemies, ${playerProjectiles.length} player bolts, ${enemyProjectiles.length} enemy bolts`);
+
+        const result = applyCombatResult(
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, COMBAT_TICK_DT)
+        );
+
+        if (result.combat.kills.length > 0) {
+            for (const kill of result.combat.kills) {
+                log.push(`Kill: ${kill.enemyType} (+${kill.scoreValue} base)`);
+            }
+        } else {
+            log.push('Kill: none');
+        }
+
+        log.push(`Score gained: +${result.combat.scoreGained} (total ${stats.score})`);
+        log.push(`Combo: ${stats.combo}`);
+
+        if (result.characterHit) {
+            log.push(`Player hit: ${result.characterDamage} damage`);
+            log.push(`Lives: ${prevLives} → ${character.lives}`);
+        } else {
+            log.push('Player hit: none');
+        }
+
+        log.push(
+            `Removed projectiles: ${result.combat.projectilesToRemove.size} player, ${result.combat.enemyProjectilesToRemove.size} enemy`
+        );
+        log.push(`Enemies alive: ${spawning.getAliveCount()}`);
+
+        if (stats.score > prevScore) {
+            log.push('Scoring updated.');
+        }
+
+        combatLog = log;
+        invincible = character.isInvincible();
+        syncWaveHud();
+    }
+
+    function startWaves() {
+        spawning.startGame({ x: W / 2, y: H / 2 });
+        wavesActive = true;
+        syncWaveHud();
+    }
+
+    function stopWaves() {
+        spawning.endGame();
+        wavesActive = false;
+        syncWaveHud();
     }
 
     function resetAll() {
-        enemies = [];
         playerProjectiles = [];
         enemyProjectiles = [];
         if (character) {
+            character.x = W / 2;
+            character.y = H / 2;
             character.hp = character.maxHp;
             character.lives = CHARACTER_STATS[character.type as keyof typeof CHARACTER_STATS].maxLives;
             character.invincibleUntil = 0;
@@ -104,10 +182,18 @@
         }
         stats = createStats();
         timeAlive = 0;
+        combatLog = [];
+        startWaves();
     }
 
-    // Nearest living enemy within attack range
-    function nearestEnemyInRange(): Enemy | null {
+    function syncWaveHud() {
+        stats.wave = spawning.getWave();
+        waveSpawned = spawning.getSpawnedThisWave();
+        waveQuota = spawning.getWaveQuota();
+        aliveEnemies = spawning.getAliveCount();
+    }
+
+    function nearestEnemyInRange(enemies: Enemy[]): Enemy | null {
         if (!character) return null;
         return character.findNearestInRange(enemies.filter((e) => e.isAlive()));
     }
@@ -131,14 +217,22 @@
             return;
         }
 
-        // Player movement + auto-fire toward the nearest enemy
+        if (wavesActive) {
+            const spawnResult = spawning.update(dt);
+            if (spawnResult.waveEnded) {
+                syncWaveHud();
+            }
+        }
+
+        const enemies = spawning.getEnemyList();
+
         const canShoot = character.update(dt, movement);
         character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
         character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
         invincible = character.isInvincible();
 
         if (canShoot) {
-            const target = nearestEnemyInRange();
+            const target = nearestEnemyInRange(enemies);
             if (target) {
                 if (movement.dx === 0 && movement.dy === 0) {
                     updateFacingTowardTarget(target);
@@ -148,16 +242,11 @@
             }
         }
 
-        // Update enemy AI; shooters return a projectile aimed at the player
-        for (const e of enemies) {
-            const result = e.update(dt, character.x, character.y);
-            if (result) enemyProjectiles.push(result);
-        }
+        const { projectiles } = spawning.updateAllEnemies(dt, character.x, character.y);
+        enemyProjectiles.push(...projectiles);
 
-        // Keep enemies from stacking on top of each other
         separateEntities(enemies, 2);
 
-        // Advance every projectile along its direction
         for (const p of playerProjectiles) {
             p.x += p.direction.dx * p.speed * dt;
             p.y += p.direction.dy * p.speed * dt;
@@ -167,25 +256,16 @@
             p.y += p.direction.dy * p.speed * dt;
         }
 
-        // Resolve all damage, kills, scoring, and player hits in one place
-        const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt);
-
-        // Remove spent player projectiles and any that flew off-screen
-        playerProjectiles = playerProjectiles.filter(
-            (p, i) => !result.combat.projectilesToRemove.has(i) && !offscreen(p)
+        applyCombatResult(
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt)
         );
-        // Enemy projectiles are consumed on contact (damage already applied)
-        enemyProjectiles = enemyProjectiles.filter(
-            (p) => !offscreen(p) && !projectileHitsEntity(p, character!)
-        );
-        // Drop enemies the combat system killed
-        enemies = enemies.filter((e) => e.isAlive());
 
-        draw();
+        syncWaveHud();
+        draw(enemies);
         frameId = requestAnimationFrame(loop);
     }
 
-    function draw() {
+    function draw(enemies: Enemy[]) {
         const ctx = canvas?.getContext('2d');
         if (!ctx) return;
 
@@ -207,7 +287,6 @@
             characterInvincible: invincible,
         });
 
-        // Draw player projectiles
         ctx.fillStyle = '#2563eb';
         for (const p of playerProjectiles) {
             ctx.beginPath();
@@ -215,7 +294,6 @@
             ctx.fill();
         }
 
-        // Draw enemy projectiles
         ctx.fillStyle = '#f97316';
         for (const p of enemyProjectiles) {
             ctx.beginPath();
@@ -223,17 +301,17 @@
             ctx.fill();
         }
 
-        // Debug overlay
         ctx.fillStyle = '#000';
         ctx.font = '12px monospace';
         ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 15);
-        ctx.fillText(`enemies: ${enemies.length}`, 5, 30);
-        ctx.fillText(`player projectiles: ${playerProjectiles.length}`, 5, 45);
-        ctx.fillText(`enemy projectiles: ${enemyProjectiles.length}`, 5, 60);
-        if (character) ctx.fillText(`player lives: ${character.lives}`, 5, 75);
-        ctx.fillText(`score: ${stats.score}`, 5, 90);
-        ctx.fillText(`kills: ${stats.kills}`, 5, 105);
-        ctx.fillText(`combo: ${stats.combo}`, 5, 120);
+        ctx.fillText(`wave: ${stats.wave}`, 5, 30);
+        ctx.fillText(`enemies: ${enemies.length}`, 5, 45);
+        ctx.fillText(`player projectiles: ${playerProjectiles.length}`, 5, 60);
+        ctx.fillText(`enemy projectiles: ${enemyProjectiles.length}`, 5, 75);
+        if (character) ctx.fillText(`player lives: ${character.lives}`, 5, 90);
+        ctx.fillText(`score: ${stats.score}`, 5, 105);
+        ctx.fillText(`kills: ${stats.kills}`, 5, 120);
+        ctx.fillText(`combo: ${stats.combo}`, 5, 135);
     }
 
     $effect(() => {
@@ -244,6 +322,7 @@
 
         character = new Mage(W / 2, H / 2);
         lastTime = performance.now();
+        startWaves();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
         window.addEventListener('keyup', onKeyup);
@@ -256,55 +335,135 @@
             if (frameId) cancelAnimationFrame(frameId);
             window.removeEventListener('keydown', onKeydown);
             window.removeEventListener('keyup', onKeyup);
-        }
+            spawning.endGame();
+        };
     });
 </script>
 
 <h1 class="text-6xl my-4 text-center">Combat Debug</h1>
 
-<div class="flex w-fit mx-auto rounded-md overflow-hidden border border-(--border-color)">
-    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color)"
-        >
-            <div class="flex flex-col gap-2">
-                <h3 class="text-lg font-bold mb-2">Spawn Enemies</h3>
-                {#each enemyClasses as ec}
-                    <button
-                        class="bg-(--background-color) border border-(--border-color) text-white
-                        px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200
-                        cursor-pointer"
-                        onclick={() => addEnemy(ec.label.toLowerCase())}
-                    >
-                        {ec.label}
-                    </button>
-                {/each}
-                <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md
-                    hover:bg-(--theme-color-700) transition-colors duration-200"
+<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
+    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color) h-full">
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold mb-2">Waves</h3>
+            <p class="text-sm text-gray-500">
+                Automatic spawning via <code class="text-xs">SpawningSystem</code> — types, timing,
+                and positions follow wave config.
+            </p>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+                <span>Status</span>
+                <span class="text-right text-(--text-color)">{wavesActive ? 'Running' : 'Stopped'}</span>
+                <span>Wave</span><span class="text-right text-(--text-color)">{stats.wave}</span>
+                <span>Spawned</span><span class="text-right text-(--text-color)">{waveSpawned} / {waveQuota}</span>
+                <span>Alive</span><span class="text-right text-(--text-color)">{aliveEnemies}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
+                    onclick={startWaves}
+                    disabled={wavesActive}
+                >
+                    Start Waves
+                </button>
+                <button
+                    class="bg-(--background-color) border border-(--border-color) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200"
+                    onclick={stopWaves}
+                    disabled={!wavesActive}
+                >
+                    Stop Waves
+                </button>
+                <button
+                    class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
                     onclick={resetAll}
                 >
                     Reset All
                 </button>
             </div>
-            <hr class="h-px">
-            <h3 class="text-lg font-bold mb-2">Enemy Stats</h3>
-            <table class="w-full text-sm">
-                <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th><th>Color</th></tr></thead>
-                <tbody>
-                    <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td><td style="color: {ENEMIES.grunt.color}">Grunt</td></tr>
-                    <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td><td style="color: {ENEMIES.shooter.color}">Shooter</td></tr>
-                    <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td><td style="color: {ENEMIES.chief.color}">Chief</td></tr>
-                </tbody>
-            </table>
-            <hr class="h-px">
-            <div class="flex flex-col gap-2">
-                <h3 class="text-lg font-bold mb-2">Combat</h3>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
-                    <span>Score</span><span class="text-right text-(--text-color)">{stats.score}</span>
-                    <span>Kills</span><span class="text-right text-(--text-color)">{stats.kills}</span>
-                    <span>Combo</span><span class="text-right text-(--text-color)">{stats.combo}</span>
-                    <span>Lives</span><span class="text-right text-(--text-color)">{character?.lives ?? 0}</span>
-                    <span>Time</span><span class="text-right text-(--text-color)">{timeAlive.toFixed(1)}s</span>
-                </div>
-            </div>
+        </div>
+        <hr class="h-px">
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold mb-2">Combat</h3>
+            <button
+                class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
+                onclick={triggerCombat}
+            >
+                Resolve Combat
+            </button>
+            <p class="text-sm text-gray-500">
+                Runs <code class="text-xs">processCombat</code> once on the current arena state
+                (projectiles, enemies, player) with no scripted setup.
+            </p>
+            {#if combatLog.length > 0}
+                <ul class="text-xs text-gray-500 space-y-1 font-mono bg-(--background-color) border border-(--border-color) rounded-md p-2">
+                    {#each combatLog as line}
+                        <li>{line}</li>
+                    {/each}
+                </ul>
+            {/if}
+        </div>
+        <hr class="h-px">
+        <h3 class="text-lg font-bold mb-2">Wave Config</h3>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+            <span>Initial enemies</span><span class="text-right text-(--text-color)">{WAVES.initialEnemies}</span>
+            <span>+ per wave</span><span class="text-right text-(--text-color)">{WAVES.increasePerWave}</span>
+            <span>Spawn interval</span><span class="text-right text-(--text-color)">{WAVES.spawnInterval}ms</span>
+            <span>Wave duration</span><span class="text-right text-(--text-color)">{WAVES.waveInterval}ms</span>
+            <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
+        </div>
     </div>
-    <canvas bind:this={canvas}></canvas>
+    <GameCanvasFrame width={W} height={H}>
+        <canvas bind:this={canvas}></canvas>
+    </GameCanvasFrame>
+    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-l border-(--border-color)">
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold mb-2">Manual Spawn</h3>
+            <p class="text-sm text-gray-500">
+                Spawn enemies off-screen via <code class="text-xs">spawnEnemy</code> — same rules as waves.
+            </p>
+            {#each enemyTypes as ec}
+                <button
+                    class="bg-(--background-color) border border-(--border-color) text-white
+                    px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200
+                    cursor-pointer"
+                    onclick={() => addEnemy(ec.type)}
+                >
+                    {ec.label}
+                </button>
+            {/each}
+        </div>
+        <hr class="h-px">
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold mb-2">Controls</h3>
+            <p class="text-sm text-gray-500">WASD / Arrows: Move</p>
+            <p class="text-sm text-gray-500">Shift: Sprint</p>
+            <p class="text-sm text-gray-500">Auto-fire at nearest enemy in range</p>
+        </div>
+        <hr class="h-px">
+        <h3 class="text-lg font-bold mb-2">Wave Config</h3>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+            <span>Initial enemies</span><span class="text-right text-(--text-color)">{WAVES.initialEnemies}</span>
+            <span>+ per wave</span><span class="text-right text-(--text-color)">{WAVES.increasePerWave}</span>
+            <span>Spawn interval</span><span class="text-right text-(--text-color)">{WAVES.spawnInterval}ms</span>
+            <span>Wave duration</span><span class="text-right text-(--text-color)">{WAVES.waveInterval}ms</span>
+            <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
+        </div>
+        <hr class="h-px">
+        <h3 class="text-lg font-bold mb-2">Enemy Stats</h3>
+        <table class="w-full text-sm">
+            <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th></tr></thead>
+            <tbody>
+                <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td></tr>
+                <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td></tr>
+                <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td></tr>
+            </tbody>
+        </table>
+        <hr class="h-px">
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+            <span>Score</span><span class="text-right text-(--text-color)">{stats.score}</span>
+            <span>Kills</span><span class="text-right text-(--text-color)">{stats.kills}</span>
+            <span>Combo</span><span class="text-right text-(--text-color)">{stats.combo}</span>
+            <span>Lives</span><span class="text-right text-(--text-color)">{character?.lives ?? 0}</span>
+            <span>Time</span><span class="text-right text-(--text-color)">{timeAlive.toFixed(1)}s</span>
+        </div>
+    </div>
 </div>

@@ -3,6 +3,8 @@
     import { ENEMIES, CANVAS } from '$lib/game/config';
     import { separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
+    import { spawnEnemy, type EnemyType } from '$lib/game/systems/spawning';
+    import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let enemies = $state<Enemy[]>([]);
@@ -56,9 +58,9 @@
     }
 
     function addEnemy(type: string) {
-        if (type === 'grunt') enemies.push(new Grunt(Math.random() * W, Math.random() * H));
-        else if (type === 'shooter') enemies.push(new Shooter(Math.random() * W, Math.random() * H));
-        else if (type === 'chief') enemies.push(new Chief(Math.random() * W, Math.random() * H));
+        if (type === 'grunt' || type === 'shooter' || type === 'chief') {
+            enemies.push(spawnEnemy(type as EnemyType));
+        }
     }
 
     function resetAll() {
@@ -210,7 +212,7 @@
 
 <h1 class="text-6xl my-4 text-center">Enemies Debug</h1>
 
-<div class="flex w-fit mx-auto rounded-md overflow-hidden border border-(--border-color)">
+<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
     <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color)"
         >
             <div class="flex flex-col gap-2">
@@ -250,5 +252,7 @@
                 <p class="text-sm text-gray-500">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
             </div>
     </div>
-    <canvas bind:this={canvas} onclick={onCanvasClick}></canvas>
+    <GameCanvasFrame width={W} height={H}>
+        <canvas bind:this={canvas} onclick={onCanvasClick}></canvas>
+    </GameCanvasFrame>
 </div>

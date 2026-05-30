@@ -11,7 +11,7 @@ export const MAGE_STATS = {
     shootCooldown: 400,
     range: 150,
     invincibleFrames: 1000,
-    projectileSpeed: 50,
+    projectileSpeed: 75,
     projectileDamage: 25,
 } as const satisfies CharacterStats;
 

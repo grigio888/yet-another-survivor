@@ -1,5 +1,6 @@
 // Enemy that shoots at player when in range
 import { ENEMIES } from '../../config/index.js';
+import { isInsideCanvasView } from '../../systems/arenaBounds.js';
 import { Enemy } from './Enemy.js';
 import type { Projectile } from '../../systems/collision.js';
 
@@ -25,23 +26,21 @@ export class Shooter extends Enemy {
         const dy = targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const elapsed = this.lastShot;
+        const insideCanvas = isInsideCanvasView(this.x, this.y, this.size);
+        const canShoot = insideCanvas && dist > 0 && dist <= this.range;
 
-        // Move toward target if out of range
-        if (dist > this.range * 2) {
+        // Keep walking until on-screen and close enough to fire
+        if (!canShoot) {
             if (dist > 0) {
-                const moveX = (dx / dist) * this.speed * dt;
-                const moveY = (dy / dist) * this.speed * dt;
-
-                this.x += moveX;
-                this.y += moveY;
+                this.x += (dx / dist) * this.speed * dt;
+                this.y += (dy / dist) * this.speed * dt;
             }
 
             super.update(dt, targetX, targetY);
             return null;
         }
 
-        // Shoot when in range and cooldown expired
-        if (dist <= this.range && elapsed >= ENEMIES.shooter.shootCooldown) {
+        if (elapsed >= ENEMIES.shooter.shootCooldown) {
             this.lastShot = 0;
 
             return {

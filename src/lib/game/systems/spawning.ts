@@ -1,9 +1,12 @@
 // Enemy spawning and wave management system
 // Controls wave progression, enemy creation, and spawn positions
 
-import { CANVAS, WAVES } from '../config/index.js';
+import { CANVAS, ENEMIES, WAVES } from '../config/index.js';
 import { sortByDepth } from '../rendering/depthSort.js';
 import { Grunt, Shooter, Chief, type Enemy } from '../entities/enemies/index.js';
+import { ENEMY_HP_BAR_OFFSET, isOutsideCanvasView } from './arenaBounds.js';
+
+export { isInsideCanvasView, isOutsideCanvasView } from './arenaBounds.js';
 
 // Probability weights for enemy types at each wave tier
 // Keys represent the minimum wave number where that distribution applies
@@ -38,34 +41,57 @@ function selectEnemyType(wave: number): 'grunt' | 'shooter' | 'chief' {
     return 'chief';
 }
 
+const MAX_ENEMY_SIZE = Math.max(ENEMIES.grunt.size, ENEMIES.shooter.size, ENEMIES.chief.size);
+
 /**
  * Pick a random spawn position outside the visible canvas area.
- * Spawns enemies from the perimeter just outside the canvas bounds.
+ * Samples anywhere in the margin band around the arena so spawns vary
+ * by edge and corner, not only along the four sides.
  */
-function pickSpawnPosition(): { x: number; y: number } {
-    const w = CANVAS.width;
-    const h = CANVAS.height;
-    const margin = 40; // spawn slightly outside the canvas edge
-    
-    // Choose one of four edges randomly
+export function pickSpawnPosition(
+    width: number = CANVAS.width,
+    height: number = CANVAS.height,
+    margin: number = WAVES.spawnMargin,
+    entitySize: number = MAX_ENEMY_SIZE,
+): { x: number; y: number } {
+    const pad = entitySize / 2 + ENEMY_HP_BAR_OFFSET + margin;
+    const minX = -pad;
+    const maxX = width + pad;
+    const minY = -pad;
+    const maxY = height + pad;
+
+    // Rejection sample until the full enemy visual sits outside the viewport
+    for (let attempt = 0; attempt < 32; attempt++) {
+        const x = minX + Math.random() * (maxX - minX);
+        const y = minY + Math.random() * (maxY - minY);
+
+        if (isOutsideCanvasView(x, y, entitySize, width, height)) {
+            return { x, y };
+        }
+    }
+
+    // Fallback: random edge spawn
     const edge = Math.floor(Math.random() * 4);
-    
+    const along = Math.random();
+
     switch (edge) {
-        case 0: // top
-            return { x: Math.random() * w, y: -margin };
-        case 1: // bottom
-            return { x: Math.random() * w, y: h + margin };
-        case 2: // left
-            return { x: -margin, y: Math.random() * h };
-        case 3: // right
-            return { x: w + margin, y: Math.random() * h };
+        case 0:
+            return { x: along * width, y: -pad };
+        case 1:
+            return { x: along * width, y: height + pad };
+        case 2:
+            return { x: -pad, y: along * height };
+        default:
+            return { x: width + pad, y: along * height };
     }
 }
+
+export type EnemyType = 'grunt' | 'shooter' | 'chief';
 
 /**
  * Create a new enemy instance of the given type at the specified position.
  */
-function createEnemy(type: 'grunt' | 'shooter' | 'chief', x: number, y: number): Enemy {
+export function createEnemy(type: EnemyType, x: number, y: number): Enemy {
     switch (type) {
         case 'grunt':
             return new Grunt(x, y);
@@ -74,6 +100,13 @@ function createEnemy(type: 'grunt' | 'shooter' | 'chief', x: number, y: number):
         case 'chief':
             return new Chief(x, y);
     }
+}
+
+/** Spawn an enemy fully outside the canvas viewport. */
+export function spawnEnemy(type: EnemyType): Enemy {
+    const size = ENEMIES[type].size;
+    const pos = pickSpawnPosition(CANVAS.width, CANVAS.height, WAVES.spawnMargin, size);
+    return createEnemy(type, pos.x, pos.y);
 }
 
 /**
@@ -164,7 +197,8 @@ export class SpawningSystem {
             this.spawnedThisWave++;
             
             const type = selectEnemyType(this.wave);
-            const pos = pickSpawnPosition();
+            const size = ENEMIES[type].size;
+            const pos = pickSpawnPosition(CANVAS.width, CANVAS.height, WAVES.spawnMargin, size);
             const enemy = createEnemy(type, pos.x, pos.y);
             
             this.enemies.push(enemy);
@@ -246,6 +280,28 @@ export class SpawningSystem {
     /** Total enemies spawned this wave */
     getSpawnedThisWave(): number {
         return this.spawnedThisWave;
+    }
+
+    /** Enemy quota for the current wave */
+    getWaveQuota(): number {
+        return this.waveEnemyCount;
+    }
+
+    /** Live enemy list owned by the spawning system (same reference each frame). */
+    getEnemyList(): Enemy[] {
+        return this.enemies;
+    }
+
+    /** Drop enemies killed during combat resolution. */
+    pruneDeadEnemies(): void {
+        this.enemies = this.enemies.filter((e) => e.isAlive());
+    }
+
+    /** Spawn a single enemy off-screen (manual debug spawn). */
+    spawnManualEnemy(type: EnemyType): Enemy {
+        const enemy = spawnEnemy(type);
+        this.enemies.push(enemy);
+        return enemy;
     }
 
     /** Reset for a new game, preserving score/combo */

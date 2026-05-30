@@ -2,8 +2,8 @@
 
 // Canvas settings
 export const CANVAS = {
-    width: 800,
-    height: 600,
+    width: 900,
+    height: 700,
     fps: 60,
 };
 
@@ -13,6 +13,8 @@ export const WAVES = {
     increasePerWave: 2,
     spawnInterval: 2000, // ms between enemy spawns within a wave
     waveInterval: 15000, // ms between wave flushes
+    /** Extra distance beyond canvas corner + enemy radius when spawning */
+    spawnMargin: 100,
 };
 
 // Enemy types and their stats
