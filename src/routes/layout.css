@@ -33,17 +33,17 @@
 	--bg-color-900: theme("colors.gray.900");
 	--bg-color-950: theme("colors.gray.950");
 
-	--theme-color-50: theme("colors.purple.50");
-	--theme-color-100: theme("colors.purple.100");
-	--theme-color-200: theme("colors.purple.200");
-	--theme-color-300: theme("colors.purple.300");
-	--theme-color-400: theme("colors.purple.400");
-	--theme-color-500: theme("colors.purple.500");
-	--theme-color-600: theme("colors.purple.600");
-	--theme-color-700: theme("colors.purple.700");
-	--theme-color-800: theme("colors.purple.800");
-	--theme-color-900: theme("colors.purple.900");
-	--theme-color-950: theme("colors.purple.950");
+	--theme-color-50: theme("colors.cyan.50");
+	--theme-color-100: theme("colors.cyan.100");
+	--theme-color-200: theme("colors.cyan.200");
+	--theme-color-300: theme("colors.cyan.300");
+	--theme-color-400: theme("colors.cyan.400");
+	--theme-color-500: theme("colors.cyan.500");
+	--theme-color-600: theme("colors.cyan.600");
+	--theme-color-700: theme("colors.cyan.700");
+	--theme-color-800: theme("colors.cyan.800");
+	--theme-color-900: theme("colors.cyan.900");
+	--theme-color-950: theme("colors.cyan.950");
 
 	--colors-pulse-animation: hsla(0, 0%, 65%, 0.3);
 
@@ -80,7 +80,7 @@
 	--text-color-other: var(--text-color-300);
 	--theme-color: var(--theme-color-500);
 	--border-color: var(--theme-color-300);
-    --header-color: var(--theme-color-900);
+    --header-color: var(--theme-color-700);
 	--shadow-theme-color: var(--theme-color-200);
 	--background-color: var(--bg-color-50);
 	--background-color-hover: var(--bg-color-100);

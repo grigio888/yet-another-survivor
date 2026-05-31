@@ -72,6 +72,18 @@ describe('ItemInventory', () => {
         inventory.tick(0.5);
         expect(inventory.canFireAny(base)).toBe(true);
     });
+
+    it('exposes fixed active and passive slot arrays', () => {
+        const inventory = new ItemInventory();
+        inventory.equip('fireball');
+        inventory.equip('swift_boots');
+
+        expect(inventory.getActiveSlots()).toHaveLength(MAX_ACTIVE_ITEMS);
+        expect(inventory.getPassiveSlots()).toHaveLength(MAX_PASSIVE_ITEMS);
+        expect(inventory.getActiveSlots()[0]?.id).toBe('fireball');
+        expect(inventory.getActiveSlots()[1]).toBeNull();
+        expect(inventory.getPassiveSlots()[0]?.id).toBe('swift_boots');
+    });
 });
 
 describe('Character items integration', () => {

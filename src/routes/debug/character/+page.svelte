@@ -14,6 +14,7 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
     import { drawDebugHud } from '$lib/game/rendering/debugHud';
 
     let canvas: HTMLCanvasElement | null = $state(null);
@@ -255,7 +256,16 @@
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={() => resetCharacter()}>Reset</button>
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
+    <div class="relative flex min-w-0 flex-1 items-center justify-center">
+        <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
+        {#if character}
+            <CharacterItemLoadout
+                inventory={character.inventory}
+                class="absolute top-3 left-3 z-10 pointer-events-none"
+                showLabels={false}
+            />
+        {/if}
+    </div>
     <div
         class="flex flex-col justify-between gap-2 w-64 border-l border-(--border-color)"
     >
@@ -273,14 +283,6 @@
                 <p class="text-sm text-gray-500">Type: {character.type}</p>
                 <p class="text-sm text-gray-500">Max Lives: {config.maxLives}</p>
                 <p class="text-sm text-gray-500">Speed: {config.speed} px/s</p>
-                <p class="text-sm text-gray-500">
-                    Active ({character.inventory.getActiveCount()}/4):
-                    {character.inventory.getActiveItems().map((item) => item.name).join(', ') || '—'}
-                </p>
-                <p class="text-sm text-gray-500">
-                    Passive ({character.inventory.getPassiveCount()}/4):
-                    {character.inventory.getPassiveItems().map((item) => item.name).join(', ') || '—'}
-                </p>
                 <p class="text-sm text-gray-500">Max range: {character.attackStats.range}px</p>
                 <p class="text-sm text-gray-500">Damage: {character.attackStats.projectileDamage}</p>
                 <p class="text-sm text-gray-500">Invuln: {config.invincibleFrames}ms</p>

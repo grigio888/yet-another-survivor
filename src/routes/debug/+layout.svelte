@@ -3,7 +3,7 @@
 </script>
 
 <header
-    class="sticky top-0 z-10 bg-(--header-color) text-(--text-color) border-(--border-color)
+    class="sticky top-0 z-10 bg-(--header-color) text-(--background-color) border-(--border-color)
     border-b p-4 flex justify-between items-center shadow-(--shadow-color)"
 >
     <h1 class="text-xl font-bold">

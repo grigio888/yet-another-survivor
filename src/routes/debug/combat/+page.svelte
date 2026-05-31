@@ -21,6 +21,7 @@
     import type { CombatStats } from '$lib/game/systems/combat';
     import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
     import { drawDebugHud } from '$lib/game/rendering/debugHud';
 
     const spawning = new SpawningSystem();
@@ -425,7 +426,16 @@
             <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
+    <div class="relative flex min-w-0 flex-1 items-center justify-center">
+        <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
+        {#if character}
+            <CharacterItemLoadout
+                inventory={character.inventory}
+                class="absolute top-3 left-3 z-10 pointer-events-none"
+                showLabels={false}
+            />
+        {/if}
+    </div>
     <div class="flex flex-col justify-between gap-2 p-4 w-96 border-l border-(--border-color)">
         <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Manual Spawn</h3>

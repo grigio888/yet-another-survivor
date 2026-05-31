@@ -126,6 +126,14 @@ export class ItemInventory {
         return this.getPassiveItemIds().length;
     }
 
+    getActiveSlots(): (ItemDefinition | null)[] {
+        return this.activeItems.map((id) => (id ? ITEMS[id] : null));
+    }
+
+    getPassiveSlots(): (ItemDefinition | null)[] {
+        return this.passiveItems.map((id) => (id ? ITEMS[id] : null));
+    }
+
     getAttackStatsForItem(base: CharacterBaseStats, itemId: ItemId): AttackStats {
         return attackStatsFromItem(base, ITEMS[itemId], this.getPassiveItems());
     }
