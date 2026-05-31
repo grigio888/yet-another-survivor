@@ -7,10 +7,8 @@ import {
 } from '$lib/game/animation/spriteFrame.js';
 
 const BASE_LAYOUT = {
-    feetFromBottom: 8,
     heightScale: 3.5,
     zoom: 1.05,
-    liftFromShadowCenter: 0.15,
 };
 
 describe('spriteFrame', () => {
@@ -31,11 +29,10 @@ describe('spriteFrame', () => {
     it('merges layout overrides onto the base layout', () => {
         expect(mergeSpriteFrameLayout(BASE_LAYOUT, '/a.png')).toEqual(BASE_LAYOUT);
         expect(
-            applySpriteFrameLayout(BASE_LAYOUT, { zoom: 1.2, feetFromBottom: 10 }),
+            applySpriteFrameLayout(BASE_LAYOUT, { zoom: 1.2, heightScale: 4 }),
         ).toEqual({
-            ...BASE_LAYOUT,
+            heightScale: 4,
             zoom: 1.2,
-            feetFromBottom: 10,
         });
     });
 });

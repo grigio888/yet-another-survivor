@@ -11,6 +11,7 @@ export const CHIEF_STATS = {
     scoreValue: 100,
     color: '#f43f5e', // pink/red
     size: 36,
+    shadow: { anchor: { x: 50, y: 50 }, size: { x: 36, y: 18 } },
     hitbox: { x: 36, y: 36 },
     stagger: 30,
     staggerTime: 250,
@@ -33,6 +34,7 @@ export class Chief extends Enemy {
             stagger: CHIEF_STATS.stagger,
             staggerTime: CHIEF_STATS.staggerTime,
             hitbox: CHIEF_STATS.hitbox,
+            shadow: CHIEF_STATS.shadow,
         });
     }
 

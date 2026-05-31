@@ -5,10 +5,16 @@ import { CANVAS, WAVES } from '../config/index.js';
 import { sortByDepth } from '../rendering/depthSort.js';
 import { Grunt, Shooter, Chief, Jelly, ENEMY_STATS, type Enemy } from '../entities/enemies/index.js';
 import type { EnemyType } from '../entities/enemies/types.js';
-import { ENEMY_HP_BAR_OFFSET, isOutsideCanvasView } from './arenaBounds.js';
+import { ENEMY_HP_BAR_OFFSET, isOutsideShadowEntityView } from './arenaBounds.js';
+import { defaultEntityShadow } from '../rendering/shadow.js';
 import { getEnemySpawnExtent } from '../entities/enemies/catalog.js';
 
-export { isInsideCanvasView, isOutsideCanvasView } from './arenaBounds.js';
+export {
+    isInsideCanvasView,
+    isInsideShadowEntityView,
+    isOutsideCanvasView,
+    isOutsideShadowEntityView,
+} from './arenaBounds.js';
 
 // Probability weights for enemy types at each wave tier
 // Keys represent the minimum wave number where that distribution applies
@@ -72,12 +78,14 @@ export function pickSpawnPosition(
     const minY = -padYDown;
     const maxY = height + padYUp;
 
+    const spawnShadow = defaultEntityShadow(entitySize);
+
     // Rejection sample until the full enemy visual sits outside the viewport
     for (let attempt = 0; attempt < 32; attempt++) {
         const x = minX + Math.random() * (maxX - minX);
         const y = minY + Math.random() * (maxY - minY);
 
-        if (isOutsideCanvasView(x, y, entitySize, entitySize, width, height)) {
+        if (isOutsideShadowEntityView(x, y, spawnShadow, entitySize, entitySize, width, height)) {
             return { x, y };
         }
     }

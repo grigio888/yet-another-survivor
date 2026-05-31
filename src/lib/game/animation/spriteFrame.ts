@@ -1,15 +1,14 @@
 import type { SpriteLayout } from './spriteConfig.js';
 
-/** Per-frame layout overrides relative to the entity shadow anchor. */
+/** Per-frame animation offsets relative to the layout sprite-start anchor. */
 export type SpriteFrameOverrides = {
-    /** Horizontal offset from shadow center, in pixels */
+    /** Horizontal offset from the sprite-start anchor, in pixels */
     x?: number;
-    /** Vertical offset from the default feet anchor, in pixels */
+    /** Vertical offset from the sprite-start anchor in pixels (negative = move up) */
     y?: number;
+    /** Per-sprite scale multiplier — overrides layout.zoom for this frame */
     zoom?: number;
-    feetFromBottom?: number;
     heightScale?: number;
-    liftFromShadowCenter?: number;
 };
 
 export type SpriteFrame = string | ({ src: string } & SpriteFrameOverrides);
@@ -29,10 +28,9 @@ export function applySpriteFrameLayout(
     overrides: SpriteFrameOverrides = {},
 ): SpriteLayout {
     return {
-        feetFromBottom: overrides.feetFromBottom ?? base.feetFromBottom,
         heightScale: overrides.heightScale ?? base.heightScale,
         zoom: overrides.zoom ?? base.zoom,
-        liftFromShadowCenter: overrides.liftFromShadowCenter ?? base.liftFromShadowCenter,
+        position: base.position,
     };
 }
 

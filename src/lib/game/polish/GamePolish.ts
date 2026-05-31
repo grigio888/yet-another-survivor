@@ -4,6 +4,7 @@ import { ParticleManager } from '../particles/index.js';
 import type { KillRecord, BattleResult } from '../systems/combat.js';
 import type { Enemy } from '../entities/enemies/index.js';
 import type { Character } from '../entities/characters/index.js';
+import { getEntityAnchorPoint } from '../rendering/shadow.js';
 
 export class GamePolish {
     readonly audio = new AudioManager();
@@ -29,7 +30,8 @@ export class GamePolish {
     onCombatResult(result: BattleResult, enemies: Enemy[], character: Character | null) {
         this.onEnemyKills(result.combat.kills, enemies);
         if (result.characterDamaged && character) {
-            this.onPlayerHit(character.x, character.y);
+            const anchor = getEntityAnchorPoint(character);
+            this.onPlayerHit(anchor.x, anchor.y);
         }
     }
 
@@ -38,7 +40,8 @@ export class GamePolish {
             const enemy = enemies[kill.enemyIndex];
             if (!enemy) continue;
             this.audio.play('enemy_death');
-            this.particles.emitExplosion(enemy.x, enemy.y, enemy.color);
+            const anchor = getEntityAnchorPoint(enemy);
+            this.particles.emitExplosion(anchor.x, anchor.y, enemy.color);
         }
     }
 

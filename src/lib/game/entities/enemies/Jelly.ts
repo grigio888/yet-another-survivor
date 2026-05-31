@@ -35,6 +35,11 @@ import walk_nw_8 from '$lib/assets/enemies/jelly/walk_nw_8.png';
 import hit_sw_1 from '$lib/assets/enemies/jelly/hit_sw_1.png';
 import hit_nw_1 from '$lib/assets/enemies/jelly/hit_nw_1.png';
 
+import dying_sw_1 from '$lib/assets/enemies/jelly/dying_sw_1.png';
+import dying_sw_2 from '$lib/assets/enemies/jelly/dying_sw_2.png';
+import dying_sw_3 from '$lib/assets/enemies/jelly/dying_sw_3.png';
+import dying_sw_4 from '$lib/assets/enemies/jelly/dying_sw_4.png';
+
 /** Art authored facing SW — SE mirrors horizontally at draw time. */
 const JELLY_IDLE_SW_FRAMES = [
     { src: idle_sw_1, x: 0, y: 0, zoom: 1.05 },
@@ -75,13 +80,18 @@ const JELLY_HIT_SW_FRAMES = [
 const JELLY_HIT_NW_FRAMES = [
     { src: hit_nw_1, x: 0, y: 0, zoom: .9 },
 ] as const satisfies readonly SpriteFrame[];
+const JELLY_DYING_SW_FRAMES = [
+    { src: dying_sw_1, x: 0, y: 0, zoom: 1.5 },
+    { src: dying_sw_2, x: 0, y: 0, zoom: 2 },
+    { src: dying_sw_3, x: 0, y: 13, zoom: 2.2 },
+    { src: dying_sw_4, x: 0, y: 13, zoom: .95 },
+] as const satisfies readonly SpriteFrame[];
 
 export const JELLY_SPRITE = {
     layout: {
-        feetFromBottom: 8,
         heightScale: 3.5,
         zoom: 1.05,
-        liftFromShadowCenter: 0.15,
+        position: { x: 0, y: 0 },
     },
     idle: {
         ne: JELLY_IDLE_NW_FRAMES[0],
@@ -120,6 +130,16 @@ export const JELLY_SPRITE = {
             fps: 2,
             loop: false,
         },
+        dying: {
+            frames: {
+                ne: JELLY_DYING_SW_FRAMES,
+                nw: JELLY_DYING_SW_FRAMES,
+                se: JELLY_DYING_SW_FRAMES,
+                sw: JELLY_DYING_SW_FRAMES,
+            },
+            fps: 10,
+            loop: false,
+        },
     },
     facingFlips: {
         se: { horizontal: true },
@@ -135,8 +155,15 @@ export const JELLY_STATS = {
     shootCooldown: 0,
     scoreValue: 12,
     color: '#f472b6', // pink blob
-    size: 10,
-    hitbox: { x: 40, y: 25 },
+    size: 8,
+    shadow: {
+        anchor: { x: 50, y: 80 },
+        size: { x: 40, y: 25 }
+    },
+    hitbox: {
+        x: 40, y: 25,
+        offset: { x: 0, y: 0 }
+    },
     stagger: 10,
     staggerTime: 300,
 } as const satisfies EnemyStats;
@@ -157,6 +184,7 @@ export class Jelly extends Enemy {
             stagger: JELLY_STATS.stagger,
             staggerTime: JELLY_STATS.staggerTime,
             hitbox: JELLY_STATS.hitbox,
+            shadow: JELLY_STATS.shadow,
             sprite: JELLY_SPRITE,
         });
     }

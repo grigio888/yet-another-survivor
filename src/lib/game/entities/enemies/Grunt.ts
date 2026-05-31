@@ -11,6 +11,7 @@ export const GRUNT_STATS = {
     scoreValue: 10,
     color: '#4ade8f', // green
     size: 24,
+    shadow: { anchor: { x: 50, y: 50 }, size: { x: 24, y: 12 } },
     hitbox: { x: 24, y: 24 },
     stagger: 8,
     staggerTime: 400,
@@ -32,6 +33,7 @@ export class Grunt extends Enemy {
             stagger: GRUNT_STATS.stagger,
             staggerTime: GRUNT_STATS.staggerTime,
             hitbox: GRUNT_STATS.hitbox,
+            shadow: GRUNT_STATS.shadow,
         });
     }
 

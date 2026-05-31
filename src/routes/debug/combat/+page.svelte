@@ -5,9 +5,7 @@
     import { SHOOTER_STATS, CHIEF_STATS, JELLY_STATS } from '$lib/game/entities/enemies';
     import {
         loadCharacterSprites,
-        snapEightDirection,
         type CharacterSpriteSet,
-        type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import { drawArenaEntities } from '$lib/game/rendering/arenaRender';
     import {
@@ -25,6 +23,8 @@
     import { processCombat } from '$lib/game/systems/combat';
     import type { CombatStats } from '$lib/game/systems/combat';
     import { HitKnockback } from '$lib/game/systems/knockback';
+    import { clampShadowCenter, getEntityAnchorPoint } from '$lib/game/rendering/shadow';
+    import { ENEMY_HP_BAR_OFFSET } from '$lib/game/systems/arenaBounds';
     import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
     import { GamePolish } from '$lib/game/polish';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
@@ -51,7 +51,6 @@
     let invincible = $state(false);
     let timeAlive = $state(0);
     let stats = $state<CombatStats>(createStats());
-    let facing = $state<FacingDirection>({ dx: 0, dy: 1 });
     let wavesActive = $state(false);
     let waveSpawned = $state(0);
     let waveQuota = $state(WAVES.initialEnemies);
@@ -104,10 +103,6 @@
         if (keys.has('d') || keys.has('arrowright')) dx += 1;
         sprint = keys.has('shift');
 
-        if (dx !== 0 || dy !== 0) {
-            facing = snapEightDirection(dx, dy);
-        }
-
         const len = Math.sqrt(dx * dx + dy * dy);
         if (len > 0) {
             dx /= len;
@@ -117,7 +112,7 @@
     }
 
     function updateFacingTowardTarget(target: Enemy) {
-        facing = snapEightDirection(target.x - character!.x, target.y - character!.y);
+        character!.faceToward(target.x - character!.x, target.y - character!.y);
     }
 
     function applyCombatResult(result: ReturnType<typeof processCombat>) {
@@ -182,7 +177,12 @@
         polish.onCombatResult(result, enemies, character);
 
         if (result.characterDamaged) {
-            hitKnockback.trigger(character.x, character.y, character.range, enemies);
+            hitKnockback.trigger(
+                getEntityAnchorPoint(character).x,
+                getEntityAnchorPoint(character).y,
+                character.range,
+                enemies,
+            );
             hitKnockback.apply(enemies, COMBAT_TICK_DT, arenaWidth, arenaHeight);
         }
 
@@ -266,8 +266,7 @@
         hitKnockback.apply(enemies, dt, arenaWidth, arenaHeight);
 
         const canShoot = character.update(dt, movement);
-        character.x = Math.max(character.size / 2, Math.min(arenaWidth - character.size / 2, character.x));
-        character.y = Math.max(character.size / 2, Math.min(arenaHeight - character.size / 2, character.y));
+        clampShadowCenter(character, arenaWidth, arenaHeight, ENEMY_HP_BAR_OFFSET);
         invincible = character.isInvincible();
 
         if (canShoot) {
@@ -284,7 +283,8 @@
             }
         }
 
-        const { projectiles } = spawning.updateAllEnemies(dt, character.x, character.y);
+        const playerAnchor = getEntityAnchorPoint(character);
+        const { projectiles } = spawning.updateAllEnemies(dt, playerAnchor.x, playerAnchor.y);
         enemyProjectiles.push(...projectiles);
 
         separateEntities(enemies, 2);
@@ -304,7 +304,12 @@
         polish.onCombatResult(combatResult, enemies, character);
 
         if (combatResult.characterDamaged) {
-            hitKnockback.trigger(character.x, character.y, character.range, enemies);
+            hitKnockback.trigger(
+                getEntityAnchorPoint(character).x,
+                getEntityAnchorPoint(character).y,
+                character.range,
+                enemies,
+            );
             hitKnockback.apply(enemies, dt, arenaWidth, arenaHeight);
         }
 
@@ -357,7 +362,7 @@
             ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(arenaWidth, gy); ctx.stroke();
         }
 
-        drawArenaEntities(ctx, character, facing, sprites, enemies, {
+        drawArenaEntities(ctx, character, sprites, enemies, {
             showRange: true,
             showHitbox: true,
             characterInvincible: invincible,
@@ -456,8 +461,8 @@
         <div class="flex flex-col gap-2">
             <p class="text-sm ro-muted">
                 Automatic spawning via <code class="text-xs">SpawningSystem</code> — types, timing,
-                and positions follow wave config. Dashed amber rectangle = enemy hitbox; dashed ring =
-                player hitbox.
+                and positions follow wave config. Gray ellipse = shadow; cyan cross = sprite anchor;
+                amber rectangle = enemy hitbox; amber rectangle = player hitbox.
             </p>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm ro-muted">
                 <span>Status</span>

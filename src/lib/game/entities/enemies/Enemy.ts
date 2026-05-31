@@ -3,8 +3,10 @@ import { Entity } from '../Entity.js';
 import type { Projectile } from '../../systems/collision.js';
 import { SpriteAnimator } from '../../animation/SpriteAnimator.js';
 import type { EntitySpriteConfig } from '../../animation/spriteConfig.js';
-import type { EnemyHitbox } from './types.js';
-import { snapEightDirection, type FacingDirection } from '../../rendering/characterSprites.js';
+import type { EnemyHitbox, EnemyShadow } from './types.js';
+import { snapEightDirection, type FacingDirection } from '../../rendering/facing.js';
+import { getEntityAnchorPoint } from '../../rendering/shadow.js';
+import { cloneHitbox } from '../../systems/hitbox.js';
 
 export class Enemy extends Entity {
     public type: string;
@@ -14,6 +16,7 @@ export class Enemy extends Entity {
     public readonly stagger: number;
     public readonly staggerTime: number;
     public readonly hitbox: EnemyHitbox;
+    public readonly shadow: EnemyShadow;
     public facing: FacingDirection = { dx: 0, dy: 1 };
     public readonly animator: SpriteAnimator | null;
     private staggerRemainingMs = 0;
@@ -33,6 +36,7 @@ export class Enemy extends Entity {
         stagger?: number;
         staggerTime?: number;
         hitbox?: EnemyHitbox;
+        shadow?: EnemyShadow;
         sprite?: EntitySpriteConfig;
     }) {
         const size = options.size ?? 20;
@@ -53,7 +57,8 @@ export class Enemy extends Entity {
         this.scoreValue = options.scoreValue ?? 0;
         this.stagger = options.stagger ?? Number.POSITIVE_INFINITY;
         this.staggerTime = options.staggerTime ?? 0;
-        this.hitbox = options.hitbox ?? { x: size, y: size };
+        this.hitbox = cloneHitbox(options.hitbox ?? { x: size, y: size });
+        this.shadow = options.shadow ?? { anchor: { x: 50, y: 50 }, size: { x: size, y: size } };
         this.animator = options.sprite ? new SpriteAnimator(options.sprite) : null;
     }
 
@@ -132,8 +137,9 @@ export class Enemy extends Entity {
     }
 
     shoot(targetX: number, targetY: number): Projectile | null {
-        const dx = targetX - this.x;
-        const dy = targetY - this.y;
+        const origin = getEntityAnchorPoint(this);
+        const dx = targetX - origin.x;
+        const dy = targetY - origin.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist > 0 && dist <= this.range) {
@@ -141,8 +147,8 @@ export class Enemy extends Entity {
             const ny = dy / dist;
 
             return {
-                x: this.x,
-                y: this.y,
+                x: origin.x,
+                y: origin.y,
                 direction: { dx: nx, dy: ny },
                 speed: this.speed * 1.5,
                 damage: this.damage,

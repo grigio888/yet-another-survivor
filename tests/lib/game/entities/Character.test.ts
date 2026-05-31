@@ -1,6 +1,11 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
     import { Mage, MAGE_STATS } from '$lib/game/entities/characters';
     import { FIREBALL_ITEM } from '$lib/game/items';
+    import type { EntityShadow } from '$lib/game/rendering/shadow.js';
+
+    function shadowTarget(x: number, y: number, shadow: EntityShadow = MAGE_STATS.shadow) {
+        return { x, y, shadow };
+    }
 
     describe('Mage', () => {
         let character: Mage;
@@ -35,6 +40,15 @@
                 expect(character.y).toBeCloseTo(300, 0);
             });
 
+            it('keeps facing direction after movement stops', () => {
+                character.update(dt, { dx: 1, dy: 0, sprint: false });
+                expect(character.facing.dx).toBeGreaterThan(0);
+
+                character.update(dt, { dx: 0, dy: 0, sprint: false });
+                expect(character.facing.dx).toBeGreaterThan(0);
+                expect(character.facing.dy).toBeCloseTo(0);
+            });
+
             it('moves faster when sprinting', () => {
                 character.update(dt, { dx: 1, dy: 0, sprint: true });
                 const newSpeed = character.x;
@@ -55,7 +69,7 @@
             });
 
             it('returns false from update when no active item cooldown has elapsed', () => {
-                character.shoot({ x: 480, y: 300 });
+                character.shoot(shadowTarget(480, 300));
 
                 expect(character.update(0.01, { dx: 0, dy: 0, sprint: false })).toBe(false);
             });
@@ -76,7 +90,7 @@
 
         describe('shoot', () => {
             it('aims at target position', () => {
-                const target = { x: 480, y: 300 };
+                const target = shadowTarget(480, 300);
                 const projectile = character.shoot(target)[0];
 
                 expect(projectile).not.toBeNull();
@@ -92,14 +106,14 @@
             });
 
             it('returns null when target is at same position', () => {
-                expect(character.shoot({ x: character.x, y: character.y })).toHaveLength(0);
+                expect(character.shoot(shadowTarget(character.x, character.y))).toHaveLength(0);
             });
 
             it('returns null when target is out of range', () => {
-                const outOfRange = {
-                    x: character.x + FIREBALL_ITEM.active!.range + 50,
-                    y: character.y,
-                };
+                const outOfRange = shadowTarget(
+                    character.x + FIREBALL_ITEM.active!.range + 50,
+                    character.y,
+                );
 
                 expect(character.shoot(outOfRange)).toHaveLength(0);
             });
@@ -107,14 +121,14 @@
 
         describe('findNearestInRange', () => {
             it('returns the closest target within range', () => {
-                const near = { x: character.x + 100, y: character.y };
-                const far = { x: character.x + FIREBALL_ITEM.active!.range + 100, y: character.y };
+                const near = shadowTarget(character.x + 100, character.y);
+                const far = shadowTarget(character.x + FIREBALL_ITEM.active!.range + 100, character.y);
 
                 expect(character.findNearestInRange([far, near])).toBe(near);
             });
 
             it('returns null when no targets are in range', () => {
-                const far = { x: character.x + FIREBALL_ITEM.active!.range + 1, y: character.y };
+                const far = shadowTarget(character.x + FIREBALL_ITEM.active!.range + 1, character.y);
 
                 expect(character.findNearestInRange([far])).toBeNull();
             });
@@ -122,12 +136,14 @@
 
         describe('isInRange', () => {
             it('returns true for targets within range', () => {
-                expect(character.isInRange({ x: character.x + 100, y: character.y })).toBe(true);
+                expect(character.isInRange(shadowTarget(character.x + 100, character.y))).toBe(true);
             });
 
             it('returns false for targets beyond range', () => {
                 expect(
-                    character.isInRange({ x: character.x + FIREBALL_ITEM.active!.range + 1, y: character.y })
+                    character.isInRange(
+                        shadowTarget(character.x + FIREBALL_ITEM.active!.range + 1, character.y),
+                    ),
                 ).toBe(false);
             });
         });

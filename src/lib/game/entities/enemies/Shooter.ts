@@ -1,6 +1,6 @@
 // Enemy that shoots at player when in range
 import { CANVAS } from '../../config/index.js';
-import { isInsideCanvasView } from '../../systems/arenaBounds.js';
+import { isInsideShadowEntityView } from '../../systems/arenaBounds.js';
 import { Enemy } from './Enemy.js';
 import type { EnemyStats } from './types.js';
 import type { Projectile } from '../../systems/collision.js';
@@ -14,6 +14,7 @@ export const SHOOTER_STATS = {
     scoreValue: 25,
     color: '#f97316', // orange
     size: 20,
+    shadow: { anchor: { x: 50, y: 50 }, size: { x: 20, y: 10 } },
     hitbox: { x: 20, y: 20 },
     stagger: 12,
     staggerTime: 350,
@@ -36,6 +37,7 @@ export class Shooter extends Enemy {
             stagger: SHOOTER_STATS.stagger,
             staggerTime: SHOOTER_STATS.staggerTime,
             hitbox: SHOOTER_STATS.hitbox,
+            shadow: SHOOTER_STATS.shadow,
         });
     }
 
@@ -56,9 +58,10 @@ export class Shooter extends Enemy {
         const dy = targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const elapsed = this.lastShot;
-        const insideCanvas = isInsideCanvasView(
+        const insideCanvas = isInsideShadowEntityView(
             this.x,
             this.y,
+            this.shadow,
             this.hitbox.x,
             this.hitbox.y,
             arenaWidth,

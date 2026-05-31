@@ -7,12 +7,12 @@ import {
     drawCharacterSprite,
     type CharacterSpriteSet,
     type DrawCharacterVisualOptions,
-    type FacingDirection,
 } from './characterSprites.js';
 import { drawEntityVisual } from './entitySprites.js';
 import type { EnemySpriteLibrary } from './enemySprites.js';
 import { sortByDepth } from './depthSort.js';
 import { drawHitboxOutline } from './hitboxRender.js';
+import { drawShadowOutline, drawSpriteAnchorMarker, resolveEntityLayout } from './shadow.js';
 import {
     ENEMY_HP_BAR_GAP,
     ENEMY_HP_BAR_HEIGHT,
@@ -26,12 +26,13 @@ export function drawEnemy(
     drawEntityVisual(ctx, enemy, enemy.facing, sprites);
 
     const hpRatio = enemy.hp / enemy.maxHp;
-    const barW = enemy.size;
-    const barY = enemy.y + enemy.size / 2 + ENEMY_HP_BAR_GAP;
+    const { shadow, anchor } = resolveEntityLayout(enemy);
+    const barW = shadow.width;
+    const barY = shadow.top + shadow.height + ENEMY_HP_BAR_GAP;
     ctx.fillStyle = '#ccc';
-    ctx.fillRect(enemy.x - barW / 2, barY, barW, ENEMY_HP_BAR_HEIGHT);
+    ctx.fillRect(shadow.centerX - barW / 2, barY, barW, ENEMY_HP_BAR_HEIGHT);
     ctx.fillStyle = hpRatio > 0.5 ? '#4ade8f' : hpRatio > 0.25 ? '#f59e0b' : '#ef4444';
-    ctx.fillRect(enemy.x - barW / 2, barY, barW * hpRatio, ENEMY_HP_BAR_HEIGHT);
+    ctx.fillRect(shadow.centerX - barW / 2, barY, barW * hpRatio, ENEMY_HP_BAR_HEIGHT);
 }
 
 type ArenaDrawable = {
@@ -47,7 +48,6 @@ export interface DrawArenaOptions extends DrawCharacterVisualOptions {
 export function drawArenaEntities(
     ctx: CanvasRenderingContext2D,
     character: Character | null,
-    facing: FacingDirection,
     sprites: CharacterSpriteSet | null,
     enemies: readonly Enemy[],
     options: DrawArenaOptions = {},
@@ -67,10 +67,10 @@ export function drawArenaEntities(
 
     if (character) {
         drawables.push({
-            y: character.y,
+            y: resolveEntityLayout(character).anchor.y,
             draw: (drawCtx) => {
                 if (characterInvincible) drawCtx.globalAlpha = 0.5;
-                drawCharacterSprite(drawCtx, character, facing, sprites);
+                drawCharacterSprite(drawCtx, character, character.facing, sprites);
                 if (characterInvincible) drawCtx.globalAlpha = 1;
             },
         });
@@ -79,7 +79,7 @@ export function drawArenaEntities(
     for (const enemy of enemies) {
         const library = enemySprites?.[enemy.type as EnemySpriteType] ?? null;
         drawables.push({
-            y: enemy.y,
+            y: resolveEntityLayout(enemy).anchor.y,
             draw: (drawCtx) => drawEnemy(drawCtx, enemy, library),
         });
     }
@@ -91,12 +91,16 @@ export function drawArenaEntities(
     if (showHitbox) {
         for (const enemy of enemies) {
             if (enemy.isAlive()) {
+                drawShadowOutline(ctx, enemy);
+                drawSpriteAnchorMarker(ctx, enemy);
                 drawHitboxOutline(ctx, enemy);
             }
         }
     }
 
     if (character && showHitbox) {
+        drawShadowOutline(ctx, character);
+        drawSpriteAnchorMarker(ctx, character);
         drawCharacterHitbox(ctx, character);
     }
 }

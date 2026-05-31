@@ -7,10 +7,8 @@ import idleSw from '$lib/assets/peasant/female/idle_sw.png';
 /** Minimal sprite config for unit tests that construct raw Enemy instances. */
 export const TEST_ENEMY_SPRITE = {
     layout: {
-        feetFromBottom: 22,
         heightScale: 3.2,
         zoom: 0.9,
-        liftFromShadowCenter: 0.25,
     },
     idle: {
         ne: idleNe,

@@ -14,6 +14,13 @@ import type {
     SpriteLayout,
     SpriteUrls,
 } from '../../animation/spriteConfig.js';
+import type { EntityShadow } from '../../rendering/shadow.js';
+import { getEntityAnchorPoint, type ShadowedEntity } from '../../rendering/shadow.js';
+import { snapEightDirection, type FacingDirection } from '../../rendering/facing.js';
+import type { Hitbox } from '../../systems/hitbox.js';
+import { cloneHitbox } from '../../systems/hitbox.js';
+
+export type { Hitbox as CharacterHitbox };
 
 export type { SpriteFacing, SpriteLayout };
 export type CharacterSpriteUrls = SpriteUrls;
@@ -28,6 +35,8 @@ export type CharacterStats = {
     color: string;
     speed: number;
     invincibleFrames: number;
+    shadow: EntityShadow;
+    hitbox: Hitbox;
     sprite: CharacterSpriteConfig;
     startingItems?: readonly ItemId[];
 };
@@ -39,6 +48,9 @@ export class Character extends Entity {
     public invincibleUntil: number;
     public readonly inventory: ItemInventory;
     public readonly animator: SpriteAnimator;
+    public readonly shadow: EntityShadow;
+    public readonly hitbox: Hitbox;
+    public facing: FacingDirection = { dx: 0, dy: 1 };
     protected stats: CharacterStats;
 
     constructor(options: {
@@ -64,6 +76,8 @@ export class Character extends Entity {
 
         this.type = stats.type;
         this.stats = stats;
+        this.shadow = stats.shadow;
+        this.hitbox = cloneHitbox(stats.hitbox);
         this.inventory = inventory;
         this.animator = new SpriteAnimator(stats.sprite);
         this.range = inventory.getMaxRange(baseStats);
@@ -98,6 +112,10 @@ export class Character extends Entity {
         this.x += dx * effectiveSpeed * dt;
         this.y += dy * effectiveSpeed * dt;
 
+        if (dx !== 0 || dy !== 0) {
+            this.facing = snapEightDirection(dx, dy);
+        }
+
         const now = Date.now();
         if (this.invincibleUntil > 0 && now > this.invincibleUntil) {
             this.invincibleUntil = 0;
@@ -117,20 +135,30 @@ export class Character extends Entity {
         return this.inventory.canFireAny(this.baseStats);
     }
 
-    isInRange(target: { x: number; y: number }) {
-        const dx = target.x - this.x;
-        const dy = target.y - this.y;
+    faceToward(dx: number, dy: number) {
+        if (dx !== 0 || dy !== 0) {
+            this.facing = snapEightDirection(dx, dy);
+        }
+    }
+
+    isInRange(target: ShadowedEntity) {
+        const origin = getEntityAnchorPoint(this);
+        const point = getEntityAnchorPoint(target);
+        const dx = point.x - origin.x;
+        const dy = point.y - origin.y;
         return dx * dx + dy * dy <= this.range * this.range;
     }
 
-    findNearestInRange<T extends { x: number; y: number }>(targets: readonly T[]): T | null {
+    findNearestInRange<T extends ShadowedEntity>(targets: readonly T[]): T | null {
         let best: T | null = null;
         let bestDistSq = Infinity;
         const rangeSq = this.range * this.range;
+        const origin = getEntityAnchorPoint(this);
 
         for (const target of targets) {
-            const dx = target.x - this.x;
-            const dy = target.y - this.y;
+            const point = getEntityAnchorPoint(target);
+            const dx = point.x - origin.x;
+            const dy = point.y - origin.y;
             const distSq = dx * dx + dy * dy;
 
             if (distSq <= rangeSq && distSq < bestDistSq) {
@@ -142,8 +170,10 @@ export class Character extends Entity {
         return best;
     }
 
-    shoot(target: { x: number; y: number }): Projectile[] {
-        const projectiles = this.inventory.fireAll(this.baseStats, { x: this.x, y: this.y }, target);
+    shoot(target: ShadowedEntity): Projectile[] {
+        const origin = getEntityAnchorPoint(this);
+        const aim = getEntityAnchorPoint(target);
+        const projectiles = this.inventory.fireAll(this.baseStats, origin, aim);
         if (projectiles.length > 0) {
             this.animator.triggerAttack();
         }

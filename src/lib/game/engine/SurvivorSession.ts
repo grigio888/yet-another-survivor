@@ -1,9 +1,7 @@
 import { Mage, type Character } from '../entities/characters/index.js';
 import type { Enemy } from '../entities/enemies/index.js';
 import {
-    snapEightDirection,
     type CharacterSpriteSet,
-    type FacingDirection,
 } from '../rendering/characterSprites.js';
 import { drawArenaEntities } from '../rendering/arenaRender.js';
 import {
@@ -16,6 +14,8 @@ import { SpawningSystem } from '../systems/spawning.js';
 import type { GamePhase } from '../screens/types.js';
 import { GamePolish } from '../polish/GamePolish.js';
 import { HitKnockback } from '../systems/knockback.js';
+import { clampShadowCenter, getEntityAnchorPoint } from '../rendering/shadow.js';
+import { ENEMY_HP_BAR_OFFSET } from '../systems/arenaBounds.js';
 import type { EnemySpriteType } from '../entities/enemies/index.js';
 import type { EnemySpriteLibrary } from '../rendering/enemySprites.js';
 
@@ -52,7 +52,6 @@ export class SurvivorSession {
     enemyProjectiles: Projectile[] = [];
     stats = createInitialStats();
     timeAlive = 0;
-    facing: FacingDirection = { dx: 0, dy: 1 };
     invincible = false;
 
     private arenaWidth = 0;
@@ -83,7 +82,6 @@ export class SurvivorSession {
         this.enemyProjectiles = [];
         this.stats = createInitialStats();
         this.timeAlive = 0;
-        this.facing = { dx: 0, dy: 1 };
         this.character = new Mage(this.arenaWidth / 2, this.arenaHeight / 2);
         this.phase = 'playing';
         this.polish.onGameStart();
@@ -118,10 +116,6 @@ export class SurvivorSession {
     tick(dt: number, movement: { dx: number; dy: number; sprint: boolean }) {
         if (this.phase !== 'playing' || !this.character) return;
 
-        if (movement.dx !== 0 || movement.dy !== 0) {
-            this.facing = snapEightDirection(movement.dx, movement.dy);
-        }
-
         this.timeAlive += dt;
 
         const spawnResult = this.spawning.update(dt);
@@ -142,10 +136,9 @@ export class SurvivorSession {
             const target = this.nearestEnemyInRange(enemies);
             if (target) {
                 if (movement.dx === 0 && movement.dy === 0) {
-                    this.facing = snapEightDirection(
-                        target.x - this.character.x,
-                        target.y - this.character.y,
-                    );
+                    const origin = getEntityAnchorPoint(this.character);
+                    const aim = getEntityAnchorPoint(target);
+                    this.character.faceToward(aim.x - origin.x, aim.y - origin.y);
                 }
                 const projectiles = this.character.shoot(target);
                 if (projectiles.length > 0) {
@@ -155,10 +148,11 @@ export class SurvivorSession {
             }
         }
 
+        const playerAnchor = getEntityAnchorPoint(this.character);
         const { projectiles } = this.spawning.updateAllEnemies(
             dt,
-            this.character.x,
-            this.character.y,
+            playerAnchor.x,
+            playerAnchor.y,
         );
         this.enemyProjectiles.push(...projectiles);
 
@@ -187,8 +181,8 @@ export class SurvivorSession {
 
         if (combatResult.characterDamaged) {
             this.hitKnockback.trigger(
-                this.character.x,
-                this.character.y,
+                playerAnchor.x,
+                playerAnchor.y,
                 this.character.range,
                 enemies,
             );
@@ -244,7 +238,7 @@ export class SurvivorSession {
 
         const enemies = this.spawning.getEnemyList();
 
-        drawArenaEntities(ctx, this.character, this.facing, sprites, enemies, {
+        drawArenaEntities(ctx, this.character, sprites, enemies, {
             showRange: false,
             showHitbox: false,
             characterInvincible: this.invincible,
@@ -271,9 +265,7 @@ export class SurvivorSession {
 
     private clampCharacter() {
         if (!this.character) return;
-        const half = this.character.size / 2;
-        this.character.x = Math.max(half, Math.min(this.arenaWidth - half, this.character.x));
-        this.character.y = Math.max(half, Math.min(this.arenaHeight - half, this.character.y));
+        clampShadowCenter(this.character, this.arenaWidth, this.arenaHeight, ENEMY_HP_BAR_OFFSET);
     }
 
     private nearestEnemyInRange(enemies: Enemy[]): Enemy | null {

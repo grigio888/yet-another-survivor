@@ -4,10 +4,12 @@
 
 import {
     circleHitsHitbox,
-    getHitboxCollisionRadius,
-    hitboxCollidesWithCircle,
+    hitboxesOverlap,
+    separateHitboxEntities,
     type Hitbox,
+    type HitboxEntity,
 } from './hitbox.js';
+import type { EntityShadow } from '../rendering/shadow.js';
 
 // Projectiles are emitted by Character and Shooter entities
 // represented as simple data objects, not full Entity instances.
@@ -27,13 +29,9 @@ export type CollidableEntity = {
     x: number;
     y: number;
     size: number;
-    hitbox?: Hitbox;
+    hitbox: Hitbox;
+    shadow: EntityShadow;
 };
-
-function getSeparableRadius(entity: CollidableEntity): number {
-    if (entity.hitbox) return getHitboxCollisionRadius(entity.hitbox);
-    return entity.size / 2;
-}
 
 // squared Euclidean distance between two points
 function distSq(x1: number, y1: number, x2: number, y2: number): number {
@@ -71,51 +69,15 @@ export function entityCollidesWith(
 }
 
 /**
- * Push overlapping entities apart so they don't stack on top of each other.
- * Each entity is treated as a circle of radius `size / 2`. For every
- * overlapping pair, both entities are nudged half the overlap along the axis
- * between their centers. Runs `iterations` relaxation passes for stability
- * when many entities are clustered together.
+ * Push overlapping entities apart so hitboxes do not overlap.
+ * Uses axis-aligned hitbox bounds — entities can sit closer than the old
+ * shadow-center circle approximation allowed.
  */
 export function separateEntities(
     entities: CollidableEntity[],
     iterations: number = 1
 ): void {
-    for (let pass = 0; pass < iterations; pass++) {
-        for (let i = 0; i < entities.length; i++) {
-            for (let j = i + 1; j < entities.length; j++) {
-                const a = entities[i];
-                const b = entities[j];
-
-                const dx = b.x - a.x;
-                const dy = b.y - a.y;
-                const minDist = getSeparableRadius(a) + getSeparableRadius(b);
-                const distSqVal = dx * dx + dy * dy;
-
-                if (distSqVal >= minDist * minDist) continue;
-
-                let dist = Math.sqrt(distSqVal);
-                let nx: number;
-                let ny: number;
-
-                if (dist === 0) {
-                    // Exactly coincident: shove apart in an arbitrary direction
-                    nx = 1;
-                    ny = 0;
-                    dist = 0.0001;
-                } else {
-                    nx = dx / dist;
-                    ny = dy / dist;
-                }
-
-                const push = (minDist - dist) / 2;
-                a.x -= nx * push;
-                a.y -= ny * push;
-                b.x += nx * push;
-                b.y += ny * push;
-            }
-        }
-    }
+    separateHitboxEntities(entities, iterations);
 }
 
 /**
@@ -127,15 +89,7 @@ export function projectileHitsEntity(
     e: CollidableEntity,
     projectileRadius: number = 2
 ): boolean {
-    if (e.hitbox) {
-        return circleHitsHitbox(p.x, p.y, projectileRadius, {
-            x: e.x,
-            y: e.y,
-            hitbox: e.hitbox,
-        });
-    }
-
-    return circlesCollide(p.x, p.y, projectileRadius, e.x, e.y, e.size / 2);
+    return circleHitsHitbox(p.x, p.y, projectileRadius, e);
 }
 
 /**
@@ -191,7 +145,7 @@ export interface CharacterHit {
 
 export function findCharacterHits(
     projectiles: Projectile[],
-    character: { x: number; y: number; size: number },
+    character: CollidableEntity,
     projectileRadius: number = 2
 ): CharacterHit[] {
     const hits: CharacterHit[] = [];
@@ -215,20 +169,13 @@ export interface MeleeHit {
 }
 
 export function findMeleeHits(
-    enemies: ({ x: number; y: number; size: number; damage: number; hitbox?: Hitbox })[],
-    character: { x: number; y: number; size: number }
+    enemies: ({ x: number; y: number; damage: number; hitbox: Hitbox; shadow: EntityShadow })[],
+    character: HitboxEntity & CollidableEntity,
 ): MeleeHit[] {
     const hits: MeleeHit[] = [];
     for (let ei = 0; ei < enemies.length; ei++) {
         const enemy = enemies[ei];
-        const collides = enemy.hitbox
-            ? hitboxCollidesWithCircle(
-                  { x: enemy.x, y: enemy.y, hitbox: enemy.hitbox },
-                  character,
-              )
-            : entityCollidesWith(enemy, character);
-
-        if (collides) {
+        if (hitboxesOverlap(enemy, character)) {
             hits.push({
                 eIndex: ei,
                 damage: enemy.damage,

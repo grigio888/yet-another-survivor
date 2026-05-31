@@ -11,8 +11,17 @@ import {
 
 // Helper to create mock entities
 function createEntity(x: number, y: number, size: number, damage: number = 1) {
-    return { x, y, size, damage };
+    return {
+        x,
+        y,
+        size,
+        damage,
+        shadow: { anchor: { x: 50, y: 50 }, size: { x: size, y: size } },
+        hitbox: { x: size, y: size },
+    };
 }
+
+const testShadow = { anchor: { x: 50, y: 50 }, size: { x: 20, y: 20 } };
 
 // Helper to create mock projectiles
 function createProjectile(x: number, y: number, speed: number, dx: number, dy: number, damage: number = 10) {
@@ -66,6 +75,7 @@ describe('projectileHitsEntity', () => {
             x: 10,
             y: 10,
             size: 10,
+            shadow: { anchor: { x: 50, y: 50 }, size: { x: 10, y: 10 } },
             hitbox: { x: 40, y: 20 },
         };
 
@@ -122,7 +132,7 @@ describe('findCollisions', () => {
     it('detects multiple collision pairs', () => {
         const projectiles = [
             createProjectile(5, 0, 400, 1, 0, 25),
-            createProjectile(0, 5, 400, 0, 1, 15),
+            createProjectile(0, -10, 400, 0, 1, 15),
         ];
         const enemies = [
             createEntity(0, 0, 20, 1),
@@ -166,7 +176,7 @@ describe('findCollisions', () => {
 });
 
 describe('findCharacterHits', () => {
-    const character = { x: 50, y: 50, size: 20 };
+    const character = { x: 50, y: 50, size: 20, shadow: testShadow, hitbox: { x: 20, y: 20 } };
 
     it('returns empty array when no projectiles hit character', () => {
         const projectiles = [createProjectile(0, 0, 400, 1, 0)];
@@ -197,7 +207,7 @@ describe('findCharacterHits', () => {
 });
 
 describe('findMeleeHits', () => {
-    const character = { x: 0, y: 0, size: 20 };
+    const character = { x: 0, y: 0, size: 20, shadow: testShadow, hitbox: { x: 20, y: 20 } };
 
     it('returns empty array when no enemies touching character', () => {
         const enemies = [createEntity(100, 0, 20)];
@@ -214,7 +224,14 @@ describe('findMeleeHits', () => {
     });
 
     it('detects single enemy colliding with character using a hitbox', () => {
-        const enemies = [{ x: 5, y: 0, size: 10, damage: 2, hitbox: { x: 30, y: 20 } }];
+        const enemies = [{
+            x: 5,
+            y: 0,
+            size: 10,
+            damage: 2,
+            shadow: { anchor: { x: 50, y: 50 }, size: { x: 10, y: 10 } },
+            hitbox: { x: 30, y: 20 },
+        }];
         const hits = findMeleeHits(enemies, character);
 
         expect(hits.length).toBe(1);

@@ -141,10 +141,10 @@ describe('Combat System', () => {
         });
 
         it('applies enemy projectile damage to player', () => {
-            // Create enemy projectile that hits player
+            // Create enemy projectile that hits the mage hitbox (anchor y offset from shadow center)
             enemyProjectiles.push({
-                x: 398, // Close to player (size 20)
-                y: 300,
+                x: 400,
+                y: 292,
                 direction: { dx: -1, dy: 0 },
                 speed: 300,
                 damage: 15,
@@ -164,8 +164,8 @@ describe('Combat System', () => {
             character.invincibleUntil = Date.now() + 5000;
 
             enemyProjectiles.push({
-                x: 398,
-                y: 300,
+                x: 400,
+                y: 292,
                 direction: { dx: -1, dy: 0 },
                 speed: 300,
                 damage: 15,

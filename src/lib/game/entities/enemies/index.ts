@@ -1,4 +1,4 @@
-export type { EnemyType, EnemyStats, EnemyHitbox } from './types.js';
+export type { EnemyType, EnemyStats, EnemyHitbox, EnemyShadow } from './types.js';
 export { Enemy } from './Enemy.js';
 export { Grunt } from './Grunt.js';
 export { Shooter } from './Shooter.js';

@@ -3,7 +3,7 @@ import { CANVAS, WAVES } from '../../../../src/lib/game/config';
 import { ENEMY_STATS, getEnemySpawnExtent } from '../../../../src/lib/game/entities/enemies';
 import {
     createEnemy,
-    isOutsideCanvasView,
+    isOutsideShadowEntityView,
     pickSpawnPosition,
     spawnEnemy,
     type EnemyType,
@@ -25,7 +25,15 @@ describe('pickSpawnPosition', () => {
                     extent,
                 );
 
-                expect(isOutsideCanvasView(x, y, stats.hitbox.x, stats.hitbox.y)).toBe(true);
+                expect(
+                    isOutsideShadowEntityView(
+                        x,
+                        y,
+                        stats.shadow,
+                        stats.hitbox.x,
+                        stats.hitbox.y,
+                    ),
+                ).toBe(true);
             }
         }
     });
@@ -53,7 +61,15 @@ describe('spawnEnemy', () => {
         for (const type of ENEMY_TYPES) {
             const enemy = spawnEnemy(type);
 
-            expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.hitbox.x, enemy.hitbox.y)).toBe(true);
+            expect(
+                isOutsideShadowEntityView(
+                    enemy.x,
+                    enemy.y,
+                    enemy.shadow,
+                    enemy.hitbox.x,
+                    enemy.hitbox.y,
+                ),
+            ).toBe(true);
             expect(enemy.type).toBe(type);
         }
     });

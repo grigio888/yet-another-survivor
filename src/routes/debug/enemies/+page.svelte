@@ -34,7 +34,9 @@
         loadProjectileSprites,
         type ProjectileSpriteSet,
     } from '$lib/game/rendering/projectileSprites';
+    import { drawShadowOutline, drawSpriteAnchorMarker } from '$lib/game/rendering/shadow';
     import { drawHitboxOutline } from '$lib/game/rendering/hitboxRender';
+    import { withLiveHitbox } from '$lib/game/systems/hitbox';
     import {
         facingToSpriteKey,
         snapEightDirection,
@@ -282,7 +284,9 @@
             drawEntityFallback(ctx, previewEnemy);
         }
 
-        drawHitboxOutline(ctx, previewEnemy);
+        drawShadowOutline(ctx, previewEnemy);
+        drawSpriteAnchorMarker(ctx, previewEnemy);
+        drawHitboxOutline(ctx, withLiveHitbox(previewEnemy, stats.hitbox));
 
         drawSpeedGuide(ctx);
 
@@ -348,7 +352,8 @@
 
     {#snippet left()}
         <p class="text-sm ro-muted">
-            Dashed amber rectangle = collision hitbox ({stats.hitbox.x} x {stats.hitbox.y}px, anchored at shadow).
+            Gray ellipse = shadow (entity x/y is shadow center). Cyan cross = sprite/hitbox anchor.
+            Amber rectangle = hitbox.
         </p>
         <RoWindow title="Enemy" bodyClass="p-3">
             <div class="flex flex-wrap gap-2">
@@ -475,7 +480,20 @@
                 <dt class="ro-muted">HP</dt><dd>{stats.hp}</dd>
                 <dt class="ro-muted">Damage</dt><dd>{stats.damage}</dd>
                 <dt class="ro-muted">Anchor size</dt><dd>{stats.size}px</dd>
-                <dt class="ro-muted">Hitbox</dt><dd>{stats.hitbox.x} x {stats.hitbox.y}px</dd>
+                <dt class="ro-muted">Shadow</dt>
+                <dd>{stats.shadow.size.x} x {stats.shadow.size.y}px</dd>
+                <dt class="ro-muted">Sprite start</dt>
+                <dd>{stats.shadow.anchor.x}%, {stats.shadow.anchor.y}% on shadow</dd>
+                {#if spriteConfig?.layout.position}
+                    <dt class="ro-muted">Layout offset</dt>
+                    <dd>{spriteConfig.layout.position.x}px, {spriteConfig.layout.position.y}px</dd>
+                {/if}
+                <dt class="ro-muted">Hitbox</dt>
+                <dd>{stats.hitbox.x} x {stats.hitbox.y}px</dd>
+                {#if stats.hitbox.offset}
+                    <dt class="ro-muted">Hitbox offset</dt>
+                    <dd>{stats.hitbox.offset.x}px, {stats.hitbox.offset.y}px</dd>
+                {/if}
                 <dt class="ro-muted">Score</dt><dd>{stats.scoreValue}</dd>
                 <dt class="ro-muted">Range</dt>
                 <dd>{stats.range > 0 ? `${stats.range}px` : 'Melee'}</dd>

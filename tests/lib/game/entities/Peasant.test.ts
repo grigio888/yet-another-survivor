@@ -19,8 +19,16 @@ describe('Peasant', () => {
 
     it('fires fireball within range', () => {
         const peasant = new Peasant(400, 300);
-        const inRange = peasant.shoot({ x: 460, y: 300 });
-        const outOfRange = peasant.shoot({ x: 400 + FIREBALL_ITEM.active!.range + 20, y: 300 });
+        const inRange = peasant.shoot({
+            x: 460,
+            y: 300,
+            shadow: { anchor: { x: 50, y: 50 }, size: { x: 22, y: 11 } },
+        });
+        const outOfRange = peasant.shoot({
+            x: 400 + FIREBALL_ITEM.active!.range + 20,
+            y: 300,
+            shadow: { anchor: { x: 50, y: 50 }, size: { x: 22, y: 11 } },
+        });
 
         expect(inRange).toHaveLength(1);
         expect(inRange[0]?.damage).toBe(FIREBALL_ITEM.active!.damage);

@@ -1,6 +1,6 @@
 import { KNOCKBACK } from '../config/index.js';
 import { ENEMY_HP_BAR_OFFSET } from './arenaBounds.js';
-import { getHitboxHorizontalRadius } from './hitbox.js';
+import { clampShadowCenter, getEntityAnchorPoint } from '../rendering/shadow.js';
 import type { Enemy } from '../entities/enemies/Enemy.js';
 
 /** Cubic ease-out: fast start, gentle settle */
@@ -34,8 +34,9 @@ export class HitKnockback {
         for (const enemy of enemies) {
             if (!enemy.isAlive()) continue;
 
-            const dx = enemy.x - x;
-            const dy = enemy.y - y;
+            const anchor = getEntityAnchorPoint(enemy);
+            const dx = anchor.x - x;
+            const dy = anchor.y - y;
             const distSq = dx * dx + dy * dy;
 
             if (distSq === 0 || distSq > rangeSq) continue;
@@ -71,15 +72,9 @@ export class HitKnockback {
         for (const { enemy, dirX, dirY } of this.targets) {
             if (!enemy.isAlive()) continue;
 
-            const halfW = getHitboxHorizontalRadius(enemy.hitbox);
             enemy.x += dirX * displacement;
             enemy.y += dirY * displacement;
-
-            enemy.x = Math.max(halfW, Math.min(arenaWidth - halfW, enemy.x));
-            enemy.y = Math.max(
-                enemy.hitbox.y,
-                Math.min(arenaHeight - ENEMY_HP_BAR_OFFSET, enemy.y),
-            );
+            clampShadowCenter(enemy, arenaWidth, arenaHeight, ENEMY_HP_BAR_OFFSET);
         }
     }
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WAVES } from '$lib/game/config';
-import { isOutsideCanvasView } from '$lib/game/systems/arenaBounds';
+import { isOutsideShadowEntityView } from '$lib/game/systems/arenaBounds';
 import { SpawningSystem } from '$lib/game/systems/spawning';
 
 describe('SpawningSystem', () => {
@@ -42,7 +42,15 @@ describe('SpawningSystem', () => {
 
         expect(enemy.type).toBe('chief');
         expect(system.getAliveCount()).toBe(1);
-        expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.hitbox.x, enemy.hitbox.y)).toBe(true);
+        expect(
+            isOutsideShadowEntityView(
+                enemy.x,
+                enemy.y,
+                enemy.shadow,
+                enemy.hitbox.x,
+                enemy.hitbox.y,
+            ),
+        ).toBe(true);
         expect(system.getEnemyList()).toContain(enemy);
     });
 

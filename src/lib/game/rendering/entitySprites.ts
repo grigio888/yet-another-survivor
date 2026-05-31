@@ -14,6 +14,8 @@ import {
     facingToSpriteKey,
     type FacingDirection,
 } from './characterSprites.js';
+import { drawEntityShadow, getEntityAnchorPoint, resolveEntityLayout } from './shadow.js';
+import type { EntityShadow, ShadowedEntity } from './shadow.js';
 
 export type LoadedSpriteFrame = {
     image: HTMLImageElement;
@@ -72,36 +74,13 @@ export async function loadEntitySprites(config: EntitySpriteConfig): Promise<Ent
     };
 }
 
-export interface AnimatedEntity {
-    x: number;
-    y: number;
+export interface AnimatedEntity extends ShadowedEntity {
     size: number;
     color: string;
     animator?: SpriteAnimator | null;
 }
 
-export function drawEntityShadow(ctx: CanvasRenderingContext2D, entity: AnimatedEntity) {
-    const { x, y, size, color } = entity;
-    const r = size / 2;
-
-    const halo = ctx.createRadialGradient(x, y, r * 0.15, x, y, r * 1.05);
-    halo.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
-    halo.addColorStop(0.55, 'rgba(15, 23, 42, 0.14)');
-    halo.addColorStop(1, 'rgba(15, 23, 42, 0)');
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 1.05, 0, Math.PI * 2);
-    ctx.fill();
-
-    const core = ctx.createRadialGradient(x, y, 0, x, y, r * 0.72);
-    core.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
-    core.addColorStop(0.85, `${color}55`);
-    core.addColorStop(1, 'rgba(15, 23, 42, 0.22)');
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
-    ctx.fill();
-}
+export { drawEntityShadow } from './shadow.js';
 
 function drawSpriteFrame(
     ctx: CanvasRenderingContext2D,
@@ -117,16 +96,15 @@ function drawSpriteFrame(
     const loadedFrame = frames[Math.min(frameIndex, frames.length - 1)];
     const { image: img, overrides } = loadedFrame;
     const layout = applySpriteFrameLayout(baseLayout, overrides);
-    const shadowRadius = entity.size / 2;
 
     const drawH = entity.size * layout.heightScale * layout.zoom;
     const scale = drawH / img.height;
     const drawW = img.width * scale;
+    const { spriteStart } = resolveEntityLayout(entity);
+    const layoutOffset = layout.position ?? { x: 0, y: 0 };
 
-    const feetY = entity.y - shadowRadius * layout.liftFromShadowCenter;
-    const feetAnchor = layout.feetFromBottom * scale;
-    const drawX = entity.x - drawW / 2 + (overrides.x ?? 0);
-    const drawY = feetY - drawH + feetAnchor + (overrides.y ?? 0);
+    const drawX = spriteStart.x - drawW / 2 + layoutOffset.x + (overrides.x ?? 0);
+    const drawY = spriteStart.y - drawH + layoutOffset.y + (overrides.y ?? 0);
 
     const flip = library.facingFlips?.[key];
     if (flip?.horizontal || flip?.vertical) {
@@ -214,10 +192,16 @@ export function drawAnimatedSprite(
 
 export function drawEntityFallback(
     ctx: CanvasRenderingContext2D,
-    entity: { x: number; y: number; size: number; color: string },
+    entity: AnimatedEntity,
 ) {
+    const { spriteStart } = resolveEntityLayout(entity);
     ctx.fillStyle = entity.color;
-    ctx.fillRect(entity.x - entity.size / 2, entity.y - entity.size / 2, entity.size, entity.size);
+    ctx.fillRect(
+        spriteStart.x - entity.size / 2,
+        spriteStart.y - entity.size,
+        entity.size,
+        entity.size,
+    );
 }
 
 /** Draw sprite art when loaded, otherwise the colored square fallback. */
@@ -229,10 +213,16 @@ export function drawEntityVisual(
     layout?: SpriteLayout,
 ) {
     if (library?.ready && entity.animator) {
-        drawEntityShadow(ctx, entity);
-        drawAnimatedSprite(ctx, entity as AnimatedEntity & { animator: SpriteAnimator }, facing, library, layout ?? library.layout);
+        drawAnimatedSprite(
+            ctx,
+            entity as AnimatedEntity & { animator: SpriteAnimator },
+            facing,
+            library,
+            layout ?? library.layout,
+        );
         return;
     }
 
+    drawEntityShadow(ctx, entity);
     drawEntityFallback(ctx, entity);
 }

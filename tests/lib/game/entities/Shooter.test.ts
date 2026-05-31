@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { Shooter, SHOOTER_STATS } from '$lib/game/entities/enemies/Shooter';
-import { isInsideCanvasView } from '$lib/game/systems/arenaBounds';
+import { isInsideShadowEntityView } from '$lib/game/systems/arenaBounds';
 
 describe('Shooter', () => {
     it('walks toward the player while outside the canvas', () => {
         const shooter = new Shooter(400, -120);
-        expect(isInsideCanvasView(shooter.x, shooter.y, shooter.hitbox.x, shooter.hitbox.y)).toBe(false);
+        expect(
+            isInsideShadowEntityView(
+                shooter.x,
+                shooter.y,
+                shooter.shadow,
+                shooter.hitbox.x,
+                shooter.hitbox.y,
+            ),
+        ).toBe(false);
 
         const prevY = shooter.y;
         const projectile = shooter.update(1, 400, 300);
@@ -30,7 +38,15 @@ describe('Shooter', () => {
 
         const projectile = shooter.update(1, 400, 100);
 
-        expect(isInsideCanvasView(shooter.x, shooter.y, shooter.hitbox.x, shooter.hitbox.y)).toBe(false);
+        expect(
+            isInsideShadowEntityView(
+                shooter.x,
+                shooter.y,
+                shooter.shadow,
+                shooter.hitbox.x,
+                shooter.hitbox.y,
+            ),
+        ).toBe(false);
         expect(projectile).toBeNull();
     });
 
@@ -38,7 +54,15 @@ describe('Shooter', () => {
         const shooter = new Shooter(400, 300);
         shooter.lastShot = SHOOTER_STATS.shootCooldown;
 
-        expect(isInsideCanvasView(shooter.x, shooter.y, shooter.hitbox.x, shooter.hitbox.y)).toBe(true);
+        expect(
+            isInsideShadowEntityView(
+                shooter.x,
+                shooter.y,
+                shooter.shadow,
+                shooter.hitbox.x,
+                shooter.hitbox.y,
+            ),
+        ).toBe(true);
 
         const projectile = shooter.update(1, 400, 100);
 
@@ -53,16 +77,25 @@ describe('Shooter', () => {
         const arenaHeight = 900;
 
         expect(
-            isInsideCanvasView(
+            isInsideShadowEntityView(
                 shooter.x,
                 shooter.y,
+                shooter.shadow,
                 shooter.hitbox.x,
                 shooter.hitbox.y,
                 arenaWidth,
                 arenaHeight,
             ),
         ).toBe(true);
-        expect(isInsideCanvasView(shooter.x, shooter.y, shooter.hitbox.x, shooter.hitbox.y)).toBe(false);
+        expect(
+            isInsideShadowEntityView(
+                shooter.x,
+                shooter.y,
+                shooter.shadow,
+                shooter.hitbox.x,
+                shooter.hitbox.y,
+            ),
+        ).toBe(false);
 
         const projectile = shooter.update(1, 1200, 550, arenaWidth, arenaHeight);
 

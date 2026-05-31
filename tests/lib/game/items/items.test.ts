@@ -94,7 +94,11 @@ describe('Character items integration', () => {
         expect(mage.attackStats.projectileDamage).toBe(25);
         expect(mage.range).toBe(150);
 
-        const projectiles = mage.shoot({ x: 480, y: 300 });
+        const projectiles = mage.shoot({
+            x: 480,
+            y: 300,
+            shadow: { anchor: { x: 50, y: 50 }, size: { x: 20, y: 10 } },
+        });
         expect(projectiles).toHaveLength(1);
         expect(projectiles[0]?.type).toBe('fireball');
     });
