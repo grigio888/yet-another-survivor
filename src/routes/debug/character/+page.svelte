@@ -17,6 +17,7 @@
     import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
     import DebugHud from '$lib/components/DebugHud.svelte';
+    import { RoButton, RoWindow } from '$lib/components/ui';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
@@ -229,63 +230,69 @@
     });
 </script>
 
-<DebugPlayground>
+<DebugPlayground leftTitle="Character" rightTitle="Information">
     {#snippet children()}
         <div class="relative h-full w-full">
             <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
-            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10 font-[family-name:var(--default-font)]" />
-            {#if character}
-                <CharacterItemLoadout
-                    inventory={character.inventory}
-                    class="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-                    showLabels={false}
-                />
-            {/if}
         </div>
+    {/snippet}
+
+    {#snippet overlays()}
+    <div class="relative h-full w-full flex justify-center items-end">
+        <!-- <RoWindow title="Status" class="w-52 mb-3" bodyClass="p-2">
+        </RoWindow> -->
+        {#if character}
+            <RoWindow
+                title="Skills"
+                class="w-70 mb-3"
+                bodyClass="p-2"
+            >
+                <CharacterItemLoadout inventory={character.inventory} bare showLabels={false} />
+            </RoWindow>
+            {/if}
+    </div>
     {/snippet}
 
     {#snippet left()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Character</h3>
             <div class="flex flex-wrap gap-2">
                 {#each characterClasses as cc}
-                    <button
-                        class="rounded-md px-3 py-1 text-sm transition-colors duration-200 {character?.type === cc.type ? 'bg-(--theme-color-600) text-white' : 'bg-gray-200 hover:bg-gray-300'}"
+                    <RoButton
+                        class={character?.type === cc.type ? 'from-[#7eb3e8] to-[#4d7eb8]' : 'from-[#4a688f] to-[#2f4563]'}
                         onclick={() => switchCharacter(cc.type)}
                     >
                         {cc.label}
-                    </button>
+                    </RoButton>
                 {/each}
             </div>
-            <p class="text-sm text-(--text-color-muted)">Active: {character?.type ?? '—'}</p>
+            <p class="text-sm ro-muted">Active: {character?.type ?? '—'}</p>
         </div>
-        <hr class="h-px border-(--border-color)/40" />
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
-            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={takeDamage}>Take Damage (-1 life)</button>
-            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={healFull}>Full Heal</button>
-            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={() => resetCharacter()}>Reset</button>
+            <RoButton onclick={takeDamage}>Take Damage (-1 life)</RoButton>
+            <RoButton onclick={healFull}>Full Heal</RoButton>
+            <RoButton onclick={() => resetCharacter()}>Reset</RoButton>
         </div>
     {/snippet}
 
     {#snippet right()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Controls</h3>
-            <p class="text-sm text-(--text-color-muted)">WASD/Arrows: Move</p>
-            <p class="text-sm text-(--text-color-muted)">Shift: Sprint (2x speed)</p>
-            <p class="text-sm text-(--text-color-muted)">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
+            <p class="text-sm ro-muted">WASD/Arrows: Move</p>
+            <p class="text-sm ro-muted">Shift: Sprint (2x speed)</p>
+            <p class="text-sm ro-muted">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
         </div>
-        <hr class="h-px border-(--border-color)/40" />
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Stats</h3>
             {#if character}
                 {@const config = characterConfig(character)}
-                <p class="text-sm text-(--text-color-muted)">Type: {character.type}</p>
-                <p class="text-sm text-(--text-color-muted)">Max Lives: {config.maxLives}</p>
-                <p class="text-sm text-(--text-color-muted)">Speed: {config.speed} px/s</p>
-                <p class="text-sm text-(--text-color-muted)">Max range: {character.attackStats.range}px</p>
-                <p class="text-sm text-(--text-color-muted)">Damage: {character.attackStats.projectileDamage}</p>
-                <p class="text-sm text-(--text-color-muted)">Invuln: {config.invincibleFrames}ms</p>
+                <p class="text-sm ro-muted">Type: {character.type}</p>
+                <p class="text-sm ro-muted">Max Lives: {config.maxLives}</p>
+                <p class="text-sm ro-muted">Speed: {config.speed} px/s</p>
+                <p class="text-sm ro-muted">Max range: {character.attackStats.range}px</p>
+                <p class="text-sm ro-muted">Damage: {character.attackStats.projectileDamage}</p>
+                <p class="text-sm ro-muted">Invuln: {config.invincibleFrames}ms</p>
             {/if}
         </div>
+        <DebugHud lines={hudLines} />
     {/snippet}
 </DebugPlayground>

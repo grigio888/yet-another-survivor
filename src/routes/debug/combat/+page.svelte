@@ -24,6 +24,7 @@
     import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
     import DebugHud from '$lib/components/DebugHud.svelte';
+    import { RoButton, RoWindow } from '$lib/components/ui';
 
     const spawning = new SpawningSystem();
 
@@ -357,115 +358,87 @@
     });
 </script>
 
-<DebugPlayground>
+<DebugPlayground leftTitle="Battle Control" rightTitle="Spawn & Stats">
     {#snippet children()}
         <div class="relative h-full w-full">
             <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
-            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10" />
+        </div>
+    {/snippet}
+
+    {#snippet overlays()}
+        <div class="relative h-full w-full flex justify-center items-end">
             {#if character}
-                <CharacterItemLoadout
-                    inventory={character.inventory}
-                    class="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-                    showLabels={false}
-                />
+            <RoWindow
+                title="Skills"
+                class="w-70 mb-3"
+                bodyClass="p-2"
+            >
+                <CharacterItemLoadout inventory={character.inventory} bare showLabels={false} />
+            </RoWindow>
             {/if}
         </div>
     {/snippet}
 
     {#snippet left()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Waves</h3>
-            <p class="text-sm text-(--text-color-muted)">
+            <p class="text-sm ro-muted">
                 Automatic spawning via <code class="text-xs">SpawningSystem</code> — types, timing,
                 and positions follow wave config.
             </p>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm ro-muted">
                 <span>Status</span>
-                <span class="text-right text-(--text-color)">{wavesActive ? 'Running' : 'Stopped'}</span>
-                <span>Wave</span><span class="text-right text-(--text-color)">{stats.wave}</span>
-                <span>Spawned</span><span class="text-right text-(--text-color)">{waveSpawned} / {waveQuota}</span>
-                <span>Alive</span><span class="text-right text-(--text-color)">{aliveEnemies}</span>
+                <span class="text-right ro-strong">{wavesActive ? 'Running' : 'Stopped'}</span>
+                <span>Wave</span><span class="text-right ro-strong">{stats.wave}</span>
+                <span>Spawned</span><span class="text-right ro-strong">{waveSpawned} / {waveQuota}</span>
+                <span>Alive</span><span class="text-right ro-strong">{aliveEnemies}</span>
             </div>
             <div class="flex flex-wrap gap-2">
-                <button
-                    class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700) disabled:opacity-50"
-                    onclick={startWaves}
-                    disabled={wavesActive}
-                >
-                    Start Waves
-                </button>
-                <button
-                    class="rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600) disabled:opacity-50"
-                    onclick={stopWaves}
-                    disabled={!wavesActive}
-                >
-                    Stop Waves
-                </button>
-                <button
-                    class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
-                    onclick={resetAll}
-                >
-                    Reset All
-                </button>
+                <RoButton onclick={startWaves} disabled={wavesActive}>Start Waves</RoButton>
+                <RoButton onclick={stopWaves} disabled={!wavesActive}>Stop Waves</RoButton>
+                <RoButton onclick={resetAll}>Reset All</RoButton>
             </div>
         </div>
-        <hr class="h-px border-(--border-color)/40" />
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Combat</h3>
-            <button
-                class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
-                onclick={triggerCombat}
-            >
-                Resolve Combat
-            </button>
-            <p class="text-sm text-(--text-color-muted)">
-                Runs <code class="text-xs">processCombat</code> once on the current arena state
-                (projectiles, enemies, player) with no scripted setup.
+            <RoButton onclick={triggerCombat}>Resolve Combat</RoButton>
+            <p class="text-sm ro-muted">
+                Runs <code class="text-xs">processCombat</code> once on the current arena state.
             </p>
             {#if combatLog.length > 0}
-                <ul class="space-y-1 rounded-md border border-(--border-color) bg-(--background-color) p-2 font-mono text-xs text-(--text-color-muted)">
+                <ul class="ro-panel space-y-1 p-2 font-mono text-xs ro-muted">
                     {#each combatLog as line}
                         <li>{line}</li>
                     {/each}
                 </ul>
             {/if}
         </div>
-        <hr class="h-px border-(--border-color)/40" />
-        <h3 class="text-lg font-bold">Wave Config</h3>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
-            <span>Initial enemies</span><span class="text-right text-(--text-color)">{WAVES.initialEnemies}</span>
-            <span>+ per wave</span><span class="text-right text-(--text-color)">{WAVES.increasePerWave}</span>
-            <span>Spawn interval</span><span class="text-right text-(--text-color)">{WAVES.spawnInterval}ms</span>
-            <span>Wave duration</span><span class="text-right text-(--text-color)">{WAVES.waveInterval}ms</span>
-            <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
+        <hr class="h-px border-[#a8c8f0]/60" />
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm ro-muted">
+            <span>Initial enemies</span><span class="text-right ro-strong">{WAVES.initialEnemies}</span>
+            <span>+ per wave</span><span class="text-right ro-strong">{WAVES.increasePerWave}</span>
+            <span>Spawn interval</span><span class="text-right ro-strong">{WAVES.spawnInterval}ms</span>
+            <span>Wave duration</span><span class="text-right ro-strong">{WAVES.waveInterval}ms</span>
+            <span>Spawn margin</span><span class="text-right ro-strong">{WAVES.spawnMargin}px</span>
         </div>
     {/snippet}
 
     {#snippet right()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Manual Spawn</h3>
-            <p class="text-sm text-(--text-color-muted)">
-                Spawn enemies off-screen via <code class="text-xs">spawnEnemy</code> — same rules as waves.
+            <p class="text-sm ro-muted">
+                Spawn enemies off-screen via <code class="text-xs">spawnEnemy</code>.
             </p>
             {#each enemyTypes as ec}
-                <button
-                    class="cursor-pointer rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600)"
-                    onclick={() => addEnemy(ec.type)}
-                >
-                    {ec.label}
-                </button>
+                <RoButton onclick={() => addEnemy(ec.type)}>{ec.label}</RoButton>
             {/each}
         </div>
-        <hr class="h-px border-(--border-color)/40" />
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Controls</h3>
-            <p class="text-sm text-(--text-color-muted)">WASD / Arrows: Move</p>
-            <p class="text-sm text-(--text-color-muted)">Shift: Sprint</p>
-            <p class="text-sm text-(--text-color-muted)">Auto-fire at nearest enemy in range</p>
+            <p class="text-sm ro-muted">WASD / Arrows: Move</p>
+            <p class="text-sm ro-muted">Shift: Sprint</p>
+            <p class="text-sm ro-muted">Auto-fire at nearest enemy in range</p>
         </div>
-        <hr class="h-px border-(--border-color)/40" />
-        <h3 class="text-lg font-bold">Enemy Stats</h3>
-        <table class="w-full text-sm">
+        <hr class="h-px border-[#a8c8f0]/60" />
+        <table class="w-full text-sm ro-muted">
             <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th></tr></thead>
             <tbody>
                 <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td></tr>
@@ -473,13 +446,13 @@
                 <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td></tr>
             </tbody>
         </table>
-        <hr class="h-px border-(--border-color)/40" />
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
-            <span>Score</span><span class="text-right text-(--text-color)">{stats.score}</span>
-            <span>Kills</span><span class="text-right text-(--text-color)">{stats.kills}</span>
-            <span>Combo</span><span class="text-right text-(--text-color)">{stats.combo}</span>
-            <span>Lives</span><span class="text-right text-(--text-color)">{character?.lives ?? 0}</span>
-            <span>Time</span><span class="text-right text-(--text-color)">{timeAlive.toFixed(1)}s</span>
+        <hr class="h-px border-[#a8c8f0]/60" />
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm ro-muted">
+            <span>Score</span><span class="text-right ro-strong">{stats.score}</span>
+            <span>Kills</span><span class="text-right ro-strong">{stats.kills}</span>
+            <span>Combo</span><span class="text-right ro-strong">{stats.combo}</span>
+            <span>Lives</span><span class="text-right ro-strong">{character?.lives ?? 0}</span>
+            <span>Time</span><span class="text-right ro-strong">{timeAlive.toFixed(1)}s</span>
         </div>
     {/snippet}
 </DebugPlayground>

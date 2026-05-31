@@ -8,7 +8,7 @@
 </script>
 
 <div
-    class="pointer-events-none space-y-0.5 text-right font-mono text-xs text-(--text-color) {className}"
+    class="space-y-0.5 text-right font-mono text-xs text-[var(--ro-text-strong,#17365a)] {className}"
     aria-live="polite"
 >
     {#each lines as line (line)}

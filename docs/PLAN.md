@@ -24,9 +24,9 @@ src/lib/game/
 ├── input/       # [done] Keyboard input handling
 ├── entities/    # [done] Entity, Character, Enemy, Grunt, Shooter, Chief
 ├── systems/     # [done] collision, combat, spawning
-├── engine/      # [todo] Main game loop, state machine
-├── screens/     # [todo] Main menu, game over
-├── ui/          # [todo] HUD, lives, score
+├── engine/      # [in progress] SurvivorSession loop + phase state
+├── screens/     # [done] menu + game over content
+├── ui/          # RO-style DOM components live in src/lib/components/ui/
 ├── audio/       # [todo] Sound effects, music
 ├── particles/   # [todo] Visual particle effects
 ├── effects/     # [todo] Screen effects (shake, fade)
@@ -97,12 +97,15 @@ tests/             # [partial] Vitest unit tests (combat covered)
 - `SpawningSystem` class managing waves, spawn timing, off-screen spawn points
 - Wave composition shifts toward Shooters/Chiefs at higher waves
 
-## Phase 4: Screens & UI — [todo]
+## Phase 4: Screens & UI — [done]
 
-- `screens/menu.ts` — start screen + instructions
-- `screens/gameover.ts` — final score + restart
-- `ui/hud.ts` — lives, score, and wave overlay on the canvas
-- Replace boilerplate `src/routes/+page.svelte` with the actual game route
+- `components/ui/RoWindow.svelte`, `RoButton.svelte`, `RoNavLink.svelte` — RO chrome
+- `components/game/` — `MenuScreen`, `GameOverScreen`, `GameHud`, `PauseScreen`
+- `screens/menu.ts` — start screen copy + instructions
+- `screens/gameover.ts` — final score summary + restart labels
+- `engine/SurvivorSession.ts` — playable loop extracted from debug combat
+- `src/routes/+page.svelte` — main game route (menu → play → pause → game over)
+- Debug routes keep harness overlays (`DebugHud`, `CharacterItemLoadout`)
 
 ## Phase 5: Polish — [todo]
 
@@ -119,10 +122,10 @@ tests/             # [partial] Vitest unit tests (combat covered)
 5. ~~Collision detection~~ (done)
 6. ~~Combat system~~ (done)
 7. ~~Spawning system~~ (done)
-8. **Game engine/loop + playable main route** ← next
-9. HUD and lives display
-10. Game over screen + restart
-11. Main menu screen
+8. ~~Game engine/loop + playable main route~~ (done — `SurvivorSession` + `/`)
+9. ~~HUD and lives display~~ (done — `GameHud`)
+10. ~~Game over screen + restart~~ (done)
+11. ~~Main menu screen~~ (done)
 12. Audio, particles, effects
 
 ## Resolved Decisions

@@ -33,6 +33,7 @@ export class InputManager {
     }
 
     private bindListeners() {
+        if (typeof window === 'undefined') return;
         window.addEventListener('keydown', this.handleKeyDown);
         window.addEventListener('keyup', this.handleKeyUp);
     }
@@ -99,8 +100,10 @@ export class InputManager {
 
     // Cleanup
     destroy() {
-        window.removeEventListener('keydown', this.handleKeyDown);
-        window.removeEventListener('keyup', this.handleKeyUp);
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('keydown', this.handleKeyDown);
+            window.removeEventListener('keyup', this.handleKeyUp);
+        }
         this.state.keys.clear();
         this.state.modifiers = { shift: false, control: false };
     }

@@ -7,6 +7,7 @@
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
     import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import DebugHud from '$lib/components/DebugHud.svelte';
+    import { RoButton, RoWindow } from '$lib/components/ui';
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let enemies = $state<Enemy[]>([]);
@@ -212,35 +213,28 @@
     });
 </script>
 
-<DebugPlayground>
+<DebugPlayground leftTitle="Spawn Lab">
     {#snippet children()}
         <div class="relative h-full w-full">
             <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas onGameClick={onCanvasClick} />
-            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10" />
         </div>
+    {/snippet}
+
+    {#snippet overlays()}
+        <RoWindow title="Status" class="absolute top-3 right-3 w-52" bodyClass="p-2">
+            <DebugHud lines={hudLines} />
+        </RoWindow>
     {/snippet}
 
     {#snippet left()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Spawn Enemies</h3>
             {#each enemyClasses as ec}
-                <button
-                    class="cursor-pointer rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600)"
-                    onclick={() => addEnemy(ec.label.toLowerCase())}
-                >
-                    {ec.label}
-                </button>
+                <RoButton onclick={() => addEnemy(ec.label.toLowerCase())}>{ec.label}</RoButton>
             {/each}
-            <button
-                class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
-                onclick={resetAll}
-            >
-                Reset All
-            </button>
+            <RoButton onclick={resetAll}>Reset All</RoButton>
         </div>
-        <hr class="h-px border-(--border-color)/40" />
-        <h3 class="text-lg font-bold">Enemy Stats</h3>
-        <table class="w-full text-sm">
+        <hr class="h-px border-[#a8c8f0]/60" />
+        <table class="w-full text-sm ro-muted">
             <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th><th>Color</th></tr></thead>
             <tbody>
                 <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td><td style="color: {ENEMIES.grunt.color}">Grunt</td></tr>
@@ -248,12 +242,11 @@
                 <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td><td style="color: {ENEMIES.chief.color}">Chief</td></tr>
             </tbody>
         </table>
-        <hr class="h-px border-(--border-color)/40" />
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold">Controls</h3>
-            <p class="text-sm text-(--text-color-muted)">WASD/Arrows: Move the target marker</p>
-            <p class="text-sm text-(--text-color-muted)">Shift: Move target faster</p>
-            <p class="text-sm text-(--text-color-muted)">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
+            <p class="text-sm ro-muted">WASD/Arrows: Move the target marker</p>
+            <p class="text-sm ro-muted">Shift: Move target faster</p>
+            <p class="text-sm ro-muted">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
         </div>
     {/snippet}
 </DebugPlayground>

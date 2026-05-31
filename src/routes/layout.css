@@ -221,6 +221,32 @@ hr.vr {
 	image-rendering: pixelated;
 }
 
+/* Ragnarok Online–style UI (chibi window chrome) */
+.ro-window {
+	--ro-body-bg: #fffefb;
+	--ro-text: #2a4f7c;
+	--ro-text-muted: #6a9fd4;
+	--ro-text-strong: #17365a;
+	--ro-border-soft: rgb(58 100 153 / 0.28);
+	--ro-panel-bg: rgb(142 182 232 / 0.14);
+	--ro-radius: 1rem;
+}
+
+.ro-window .ro-muted {
+	color: var(--ro-text-muted);
+}
+
+.ro-window .ro-strong {
+	color: var(--ro-text-strong);
+	font-weight: 600;
+}
+
+.ro-window .ro-panel {
+	border: 1px solid var(--ro-border-soft);
+	background: var(--ro-panel-bg);
+	border-radius: 0.75rem;
+}
+
 .game-canvas-layer--game {
 	position: relative;
 	z-index: 0;
