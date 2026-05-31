@@ -2,7 +2,7 @@
     import { Mage, CHARACTER_STATS, type Character } from '$lib/game/entities/characters';
     import type { Enemy, EnemySpriteType } from '$lib/game/entities/enemies';
     import { CANVAS, WAVES } from '$lib/game/config';
-    import { SHOOTER_STATS, CHIEF_STATS, JELLY_STATS } from '$lib/game/entities/enemies';
+    import { SHOOTER_STATS, CHIEF_STATS, JELLY_STATS, GOBLIN_ARCHER_STATS } from '$lib/game/entities/enemies';
     import {
         loadCharacterSprites,
         type CharacterSpriteSet,
@@ -62,6 +62,7 @@
 
     const enemyTypes: { label: string; type: EnemyType }[] = [
         { label: 'Jelly', type: 'jelly' },
+        { label: 'Goblin Archer', type: 'goblinArcher' },
         { label: 'Shooter', type: 'shooter' },
         { label: 'Chief', type: 'chief' },
     ];
@@ -521,6 +522,7 @@
             <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th></tr></thead>
             <tbody>
                 <tr><td>Jelly</td><td>{JELLY_STATS.hp}</td><td>{JELLY_STATS.speed}</td><td>{JELLY_STATS.damage}</td><td>Melee</td></tr>
+                <tr><td>Goblin Archer</td><td>{GOBLIN_ARCHER_STATS.hp}</td><td>{GOBLIN_ARCHER_STATS.speed}</td><td>{GOBLIN_ARCHER_STATS.damage}</td><td>{GOBLIN_ARCHER_STATS.range}px</td></tr>
                 <tr><td>Shooter</td><td>{SHOOTER_STATS.hp}</td><td>{SHOOTER_STATS.speed}</td><td>{SHOOTER_STATS.damage}</td><td>{SHOOTER_STATS.range}px</td></tr>
                 <tr><td>Chief</td><td>{CHIEF_STATS.hp}</td><td>{CHIEF_STATS.speed}</td><td>{CHIEF_STATS.damage}</td><td>Melee</td></tr>
             </tbody>

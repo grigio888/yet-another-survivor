@@ -3,7 +3,7 @@
 
 import { CANVAS, WAVES } from '../config/index.js';
 import { sortByDepth } from '../rendering/depthSort.js';
-import { Grunt, Shooter, Chief, Jelly, ENEMY_STATS, type Enemy } from '../entities/enemies/index.js';
+import { Grunt, Shooter, Chief, Jelly, GoblinArcher, ENEMY_STATS, type Enemy } from '../entities/enemies/index.js';
 import type { EnemyType } from '../entities/enemies/types.js';
 import { ENEMY_HP_BAR_OFFSET, isOutsideShadowEntityView } from './arenaBounds.js';
 import { defaultEntityShadow } from '../rendering/shadow.js';
@@ -19,15 +19,15 @@ export {
 // Probability weights for enemy types at each wave tier
 // Keys represent the minimum wave number where that distribution applies
 const WAVE_COMPOSITION: Record<number, Record<EnemyType, number>> = {
-    1: { grunt: 0.85, jelly: 0.15, shooter: 0, chief: 0 },
-    2: { grunt: 0.55, jelly: 0.15, shooter: 0.3, chief: 0 },
-    3: { grunt: 0.4, jelly: 0.1, shooter: 0.4, chief: 0.1 },
-    5: { grunt: 0.25, jelly: 0.1, shooter: 0.45, chief: 0.2 },
-    8: { grunt: 0.15, jelly: 0.1, shooter: 0.35, chief: 0.4 },
-    12: { grunt: 0.05, jelly: 0.05, shooter: 0.3, chief: 0.6 },
+    1: { grunt: 0.85, jelly: 0.15, shooter: 0, goblinArcher: 0, chief: 0 },
+    2: { grunt: 0.55, jelly: 0.15, shooter: 0.3, goblinArcher: 0, chief: 0 },
+    3: { grunt: 0.4, jelly: 0.1, shooter: 0.35, goblinArcher: 0.05, chief: 0.1 },
+    5: { grunt: 0.25, jelly: 0.1, shooter: 0.35, goblinArcher: 0.1, chief: 0.2 },
+    8: { grunt: 0.15, jelly: 0.1, shooter: 0.25, goblinArcher: 0.15, chief: 0.35 },
+    12: { grunt: 0.05, jelly: 0.05, shooter: 0.2, goblinArcher: 0.2, chief: 0.5 },
 };
 
-const ENEMY_TYPE_ORDER: EnemyType[] = ['grunt', 'jelly', 'shooter', 'chief'];
+const ENEMY_TYPE_ORDER: EnemyType[] = ['grunt', 'jelly', 'shooter', 'goblinArcher', 'chief'];
 
 function getComposition(wave: number): Record<EnemyType, number> {
     let best = WAVE_COMPOSITION[1];
@@ -57,6 +57,7 @@ const MAX_ENEMY_SIZE = Math.max(
     getEnemySpawnExtent('shooter'),
     getEnemySpawnExtent('chief'),
     getEnemySpawnExtent('jelly'),
+    getEnemySpawnExtent('goblinArcher'),
 );
 
 /**
@@ -121,6 +122,8 @@ export function createEnemy(type: EnemyType, x: number, y: number): Enemy {
             return new Chief(x, y);
         case 'jelly':
             return new Jelly(x, y);
+        case 'goblinArcher':
+            return new GoblinArcher(x, y);
     }
 }
 

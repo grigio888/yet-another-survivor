@@ -83,7 +83,7 @@ export const MAGE_STATS = {
     type: 'mage',
     maxLives: 3,
     maxHp: 70,
-    size: 20,
+    size: 15,
     color: '#60a5fa',
     speed: 160,
     invincibleFrames: 1000,

@@ -20,7 +20,7 @@ export type EnemyInspectorSettings = {
     previewFps: number;
 };
 
-const ENEMY_TYPES = new Set<EnemyType>(['grunt', 'shooter', 'chief', 'jelly']);
+const ENEMY_TYPES = new Set<EnemyType>(['grunt', 'shooter', 'chief', 'jelly', 'goblinArcher']);
 const FACINGS = new Set<SpriteFacing>(['ne', 'nw', 'se', 'sw']);
 
 export const DEFAULT_ENEMY_INSPECTOR_SETTINGS: EnemyInspectorSettings = {

@@ -2,6 +2,7 @@ import { GRUNT_STATS } from './Grunt.js';
 import { SHOOTER_STATS } from './Shooter.js';
 import { CHIEF_STATS } from './Chief.js';
 import { JELLY_SPRITE, JELLY_STATS } from './Jelly.js';
+import { GOBLIN_ARCHER_SPRITE, GOBLIN_ARCHER_STATS } from './GoblinArcher.js';
 import type { EntitySpriteConfig } from '../../animation/spriteConfig.js';
 import type { EnemyStats, EnemyType } from './types.js';
 
@@ -10,6 +11,7 @@ export const ENEMY_CATALOG: { label: string; type: EnemyType }[] = [
     { label: 'Shooter', type: 'shooter' },
     { label: 'Chief', type: 'chief' },
     { label: 'Jelly', type: 'jelly' },
+    { label: 'Goblin Archer', type: 'goblinArcher' },
 ];
 
 export const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
@@ -17,11 +19,13 @@ export const ENEMY_STATS: Record<EnemyType, EnemyStats> = {
     shooter: SHOOTER_STATS,
     chief: CHIEF_STATS,
     jelly: JELLY_STATS,
+    goblinArcher: GOBLIN_ARCHER_STATS,
 };
 
 /** Sprite configs registered on each enemy file that has art. */
 export const ENEMY_SPRITES = {
     jelly: JELLY_SPRITE,
+    goblinArcher: GOBLIN_ARCHER_SPRITE,
 } as const satisfies Partial<Record<EnemyType, EntitySpriteConfig>>;
 
 export type EnemySpriteType = keyof typeof ENEMY_SPRITES;

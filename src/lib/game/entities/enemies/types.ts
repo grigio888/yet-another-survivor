@@ -1,6 +1,6 @@
 import type { Hitbox } from '../../systems/hitbox.js';
 
-export type EnemyType = 'grunt' | 'shooter' | 'chief' | 'jelly';
+export type EnemyType = 'grunt' | 'shooter' | 'chief' | 'jelly' | 'goblinArcher';
 
 /** Width/height plus optional pixel offset from the sprite-start anchor */
 export type EnemyHitbox = Hitbox;
