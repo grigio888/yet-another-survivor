@@ -98,6 +98,7 @@
             const config = characterConfig(character);
             character.hp = character.maxHp;
             character.lives = config.maxLives;
+            character.animator.reset();
         }
     }
 
@@ -152,6 +153,7 @@
             `speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`,
             `time: ${timeAlive.toFixed(1)}s`,
             `facing: ${facingLabel()}`,
+            `anim: ${character.animator.getState()}`,
         ];
     }
 

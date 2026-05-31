@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { Chief } from '$lib/game/entities/enemies/Chief';
-import { ENEMIES } from '$lib/game/config';
+import { Chief, CHIEF_STATS } from '$lib/game/entities/enemies/Chief';
 
 describe('Chief', () => {
     it('uses chief config stats', () => {
         const chief = new Chief(300, 400);
 
         expect(chief.type).toBe('chief');
-        expect(chief.hp).toBe(ENEMIES.chief.hp);
-        expect(chief.speed).toBe(ENEMIES.chief.speed);
-        expect(chief.damage).toBe(ENEMIES.chief.damage);
-        expect(chief.size).toBe(ENEMIES.chief.size);
-        expect(chief.scoreValue).toBe(ENEMIES.chief.scoreValue);
+        expect(chief.hp).toBe(CHIEF_STATS.hp);
+        expect(chief.speed).toBe(CHIEF_STATS.speed);
+        expect(chief.damage).toBe(CHIEF_STATS.damage);
+        expect(chief.size).toBe(CHIEF_STATS.size);
+        expect(chief.scoreValue).toBe(CHIEF_STATS.scoreValue);
     });
 
     it('pursues the target relentlessly', () => {

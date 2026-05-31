@@ -14,6 +14,10 @@ import { separateEntities, type Projectile } from '../systems/collision.js';
 import { processCombat, type CombatStats } from '../systems/combat.js';
 import { SpawningSystem } from '../systems/spawning.js';
 import type { GamePhase } from '../screens/types.js';
+import { GamePolish } from '../polish/GamePolish.js';
+import { HitKnockback } from '../systems/knockback.js';
+import type { EnemySpriteType } from '../entities/enemies/index.js';
+import type { EnemySpriteLibrary } from '../rendering/enemySprites.js';
 
 const PROJECTILE_MARGIN = 50;
 
@@ -39,6 +43,8 @@ export interface SurvivorSnapshot {
 
 export class SurvivorSession {
     readonly spawning = new SpawningSystem();
+    readonly polish = new GamePolish();
+    readonly hitKnockback = new HitKnockback();
 
     phase: GamePhase = 'menu';
     character: Character | null = null;
@@ -80,6 +86,7 @@ export class SurvivorSession {
         this.facing = { dx: 0, dy: 1 };
         this.character = new Mage(this.arenaWidth / 2, this.arenaHeight / 2);
         this.phase = 'playing';
+        this.polish.onGameStart();
         this.spawning.startGame({ x: this.arenaWidth / 2, y: this.arenaHeight / 2 });
     }
 
@@ -91,6 +98,7 @@ export class SurvivorSession {
         this.character = null;
         this.stats = createInitialStats();
         this.timeAlive = 0;
+        this.polish.onReturnToMenu();
     }
 
     togglePause() {
@@ -101,6 +109,10 @@ export class SurvivorSession {
         if (this.phase === 'paused') {
             this.phase = 'playing';
         }
+    }
+
+    updatePolish(dt: number) {
+        this.polish.update(dt);
     }
 
     tick(dt: number, movement: { dx: number; dy: number; sprint: boolean }) {
@@ -118,6 +130,9 @@ export class SurvivorSession {
         }
 
         const enemies = this.spawning.getEnemyList();
+
+        this.hitKnockback.apply(enemies, dt, this.arenaWidth, this.arenaHeight);
+
         const canShoot = this.character.update(dt, movement);
 
         this.clampCharacter();
@@ -135,6 +150,7 @@ export class SurvivorSession {
                 const projectiles = this.character.shoot(target);
                 if (projectiles.length > 0) {
                     this.playerProjectiles.push(...projectiles);
+                    this.polish.onShoot();
                 }
             }
         }
@@ -157,20 +173,34 @@ export class SurvivorSession {
             projectile.y += projectile.direction.dy * projectile.speed * dt;
         }
 
-        this.applyCombatResult(
-            processCombat(
-                this.playerProjectiles,
-                this.enemyProjectiles,
-                enemies,
-                this.character,
-                this.stats,
-                dt,
-            ),
+        const combatResult = processCombat(
+            this.playerProjectiles,
+            this.enemyProjectiles,
+            enemies,
+            this.character,
+            this.stats,
+            dt,
         );
+
+        this.applyCombatResult(combatResult);
+        this.polish.onCombatResult(combatResult, enemies, this.character);
+
+        if (combatResult.characterDamaged) {
+            this.hitKnockback.trigger(
+                this.character.x,
+                this.character.y,
+                this.character.range,
+                enemies,
+            );
+            this.hitKnockback.apply(enemies, dt, this.arenaWidth, this.arenaHeight);
+        }
 
         this.stats.wave = this.spawning.getWave();
 
         if (this.character.lives <= 0) {
+            if (this.phase === 'playing') {
+                this.polish.onGameOver();
+            }
             this.phase = 'gameover';
             this.spawning.endGame();
         }
@@ -180,12 +210,17 @@ export class SurvivorSession {
         ctx: CanvasRenderingContext2D,
         sprites: CharacterSpriteSet | null,
         projectileSprites: ProjectileSpriteSet | null,
+        enemySprites: Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null = null,
     ) {
         const width = this.arenaWidth;
         const height = this.arenaHeight;
 
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, width, height);
+
+        const shake = this.polish.effects.getShakeOffset();
+        ctx.save();
+        ctx.translate(shake.x, shake.y);
 
         ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         ctx.lineWidth = 1;
@@ -202,7 +237,10 @@ export class SurvivorSession {
             ctx.stroke();
         }
 
-        if (!this.character) return;
+        if (!this.character) {
+            ctx.restore();
+            return;
+        }
 
         const enemies = this.spawning.getEnemyList();
 
@@ -210,6 +248,7 @@ export class SurvivorSession {
             showRange: false,
             showHitbox: false,
             characterInvincible: this.invincible,
+            enemySprites,
         });
 
         drawProjectiles(ctx, this.playerProjectiles, projectileSprites);
@@ -220,10 +259,14 @@ export class SurvivorSession {
             ctx.arc(projectile.x, projectile.y, 3, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        this.polish.particles.draw(ctx);
+        ctx.restore();
     }
 
     destroy() {
         this.spawning.endGame();
+        this.polish.destroy();
     }
 
     private clampCharacter() {

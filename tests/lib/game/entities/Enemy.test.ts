@@ -1,5 +1,6 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
     import { Enemy } from '$lib/game/entities/enemies/Enemy';
+    import { TEST_ENEMY_SPRITE } from '../../../helpers/enemyTestSprite';
 
     describe('Enemy', () => {
         let enemy: Enemy;
@@ -17,6 +18,7 @@
                 range: 0,
                 color: '#ff0000',
                 scoreValue: 25,
+                sprite: TEST_ENEMY_SPRITE,
             });
         });
 

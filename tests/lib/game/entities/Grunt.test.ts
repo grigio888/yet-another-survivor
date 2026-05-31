@@ -1,17 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { Grunt } from '$lib/game/entities/enemies/Grunt';
-import { ENEMIES } from '$lib/game/config';
+import { Grunt, GRUNT_STATS } from '$lib/game/entities/enemies/Grunt';
 
 describe('Grunt', () => {
     it('uses grunt config stats', () => {
         const grunt = new Grunt(100, 200);
 
         expect(grunt.type).toBe('grunt');
-        expect(grunt.hp).toBe(ENEMIES.grunt.hp);
-        expect(grunt.speed).toBe(ENEMIES.grunt.speed);
-        expect(grunt.damage).toBe(ENEMIES.grunt.damage);
-        expect(grunt.size).toBe(ENEMIES.grunt.size);
-        expect(grunt.scoreValue).toBe(ENEMIES.grunt.scoreValue);
+        expect(grunt.hp).toBe(GRUNT_STATS.hp);
+        expect(grunt.speed).toBe(GRUNT_STATS.speed);
+        expect(grunt.damage).toBe(GRUNT_STATS.damage);
+        expect(grunt.size).toBe(GRUNT_STATS.size);
+        expect(grunt.scoreValue).toBe(GRUNT_STATS.scoreValue);
     });
 
     it('moves toward the target each frame', () => {

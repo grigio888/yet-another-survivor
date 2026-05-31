@@ -1,252 +1,502 @@
 <script lang="ts">
-    import { Grunt, Shooter, Chief, type Enemy } from '$lib/game/entities/enemies';
-    import { ENEMIES, CANVAS } from '$lib/game/config';
-    import { separateEntities } from '$lib/game/systems/collision';
+    import {
+        ENEMY_CATALOG,
+        enemyHasSpriteArt,
+        enemyProjectileSpeed,
+        enemyShoots,
+        getEnemySpriteConfig,
+        getEnemyStats,
+        type EnemySpriteType,
+    } from '$lib/game/entities/enemies';
+    import { CANVAS } from '$lib/game/config';
+    import {
+        ANIMATION_STATES,
+        DEFAULT_ANIMATION_FPS,
+        getClipFrameCount,
+        resolveAnimationConfig,
+        type AnimationState,
+    } from '$lib/game/animation';
+    import { createEnemy, type EnemyType } from '$lib/game/systems/spawning';
+    import type { Enemy } from '$lib/game/entities/enemies';
     import type { Projectile } from '$lib/game/systems/collision';
-    import { spawnEnemy, type EnemyType } from '$lib/game/systems/spawning';
+    import {
+        advancePreviewFrame,
+        drawAnimatedSpriteAtState,
+        drawEntityFallback,
+        getPreviewClipFps,
+    } from '$lib/game/rendering/entitySprites';
+    import {
+        loadAllEnemySprites,
+        type EnemySpriteLibrary,
+    } from '$lib/game/rendering/enemySprites';
+    import {
+        drawProjectile,
+        loadProjectileSprites,
+        type ProjectileSpriteSet,
+    } from '$lib/game/rendering/projectileSprites';
+    import { drawHitboxOutline } from '$lib/game/rendering/hitboxRender';
+    import {
+        facingToSpriteKey,
+        snapEightDirection,
+        type FacingDirection,
+    } from '$lib/game/rendering/characterSprites';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
     import DebugPlayground from '$lib/components/DebugPlayground.svelte';
-    import DebugHud from '$lib/components/DebugHud.svelte';
     import { RoButton, RoWindow } from '$lib/components/ui';
+    import {
+        facingFromKey,
+        loadEnemyInspectorSettings,
+        saveEnemyInspectorSettings,
+    } from '$lib/debug/enemyInspectorStorage';
 
-    let canvas: HTMLCanvasElement | null = $state(null);
-    let enemies = $state<Enemy[]>([]);
-    let enemyProjectiles = $state<Projectile[]>([]);
-    let frameId = $state(0);
-    let lastTime = $state(0);
-    let keys = $state(new Set<string>());
-    let movement = $state({ dx: 0, dy: 0, sprint: false });
-    let timeAlive = $state(0);
-    // A movable point the enemies chase / aim at (stands in for the player)
-    let target = $state({ x: CANVAS.width / 2, y: CANVAS.height / 2 });
-    let arenaWidth = $state(CANVAS.width);
-    let arenaHeight = $state(CANVAS.height);
-    let hudLines = $state<string[]>([]);
+    const savedSettings =
+        typeof localStorage !== 'undefined' ? loadEnemyInspectorSettings() : loadEnemyInspectorSettings({
+            getItem: () => null,
+        });
 
-    const enemyClasses = [
-        { label: 'Grunt', cls: Grunt },
-        { label: 'Shooter', cls: Shooter },
-        { label: 'Chief', cls: Chief },
+    const FACING_OPTIONS: { label: string; facing: FacingDirection }[] = [
+        { label: 'SW', facing: { dx: -1, dy: 1 } },
+        { label: 'SE', facing: { dx: 1, dy: 1 } },
+        { label: 'NW', facing: { dx: -1, dy: -1 } },
+        { label: 'NE', facing: { dx: 1, dy: -1 } },
     ];
 
-    // Speed the target marker moves under WASD, in pixels per second
-    const TARGET_SPEED = 200;
-    // Damage applied when clicking an enemy
-    const CLICK_DAMAGE = 25;
-    // How far a projectile may travel past the canvas before being culled
-    const PROJECTILE_MARGIN = 50;
+    const ANIMATION_LABELS: Record<AnimationState, string> = {
+        idle: 'Idle',
+        walking: 'Walking',
+        attacking: 'Attacking',
+        hit: 'Hit',
+        dying: 'Dying',
+    };
 
-    function onKeydown(e: KeyboardEvent) {
-        keys.add(e.key.toLowerCase());
-        recalcMovement();
-    }
+    let canvas: HTMLCanvasElement | null = $state(null);
+    let arenaWidth = $state(CANVAS.width);
+    let arenaHeight = $state(CANVAS.height);
+    let enemySprites = $state<Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null>(null);
+    let projectileSprites = $state<ProjectileSpriteSet | null>(null);
 
-    function onKeyup(e: KeyboardEvent) {
-        keys.delete(e.key.toLowerCase());
-        recalcMovement();
-    }
+    let selectedType = $state<EnemyType>(savedSettings.selectedType);
+    let selectedAnimation = $state<AnimationState>(savedSettings.selectedAnimation);
+    let previewFacing = $state<FacingDirection>(facingFromKey(savedSettings.facing));
+    let showMovement = $state(savedSettings.showMovement);
+    let previewEnemy = $state<Enemy | null>(null);
 
-    function recalcMovement() {
-        let dx = 0, dy = 0;
-        if (keys.has('w') || keys.has('arrowup')) dy -= 1;
-        if (keys.has('s') || keys.has('arrowdown')) dy += 1;
-        if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
-        if (keys.has('d') || keys.has('arrowright')) dx += 1;
-        const sprint = keys.has('shift');
-        const len = Math.sqrt(dx * dx + dy * dy);
-        if (len > 0) {
-            dx /= len;
-            dy /= len;
+    let previewFrameIndex = $state(savedSettings.previewFrameIndex);
+    let previewFrameElapsed = $state(0);
+    let speedProbeAngle = $state(0);
+    let autoPlayFrames = $state(savedSettings.autoPlayFrames);
+    let manualFrameIndex = $state(savedSettings.manualFrameIndex);
+    let overrideFps = $state(savedSettings.overrideFps);
+    let previewFps = $state(savedSettings.previewFps);
+
+    let frameId = $state(0);
+    let lastTime = $state(0);
+
+    const previewCenter = $derived({
+        x: arenaWidth / 2,
+        y: arenaHeight / 2,
+    });
+    const speedOrbitRadius = 48;
+
+    const stats = $derived(getEnemyStats(selectedType));
+    const spriteConfig = $derived(getEnemySpriteConfig(selectedType));
+    const spriteLibrary = $derived(enemySprites?.[selectedType as EnemySpriteType] ?? null);
+    const hasArt = $derived(enemyHasSpriteArt(selectedType));
+    const shoots = $derived(enemyShoots(selectedType));
+    const projectileSpeed = $derived(enemyProjectileSpeed(selectedType));
+
+    const facingKey = $derived(facingToSpriteKey(previewFacing));
+    const orbitActive = $derived(showMovement && selectedAnimation === 'walking');
+    const drawFacing = $derived.by((): FacingDirection => {
+        if (orbitActive) {
+            return snapEightDirection(-Math.sin(speedProbeAngle), Math.cos(speedProbeAngle));
         }
-        movement = { dx, dy, sprint };
-    }
+        return previewFacing;
+    });
+    const animationFacingKey = $derived(facingToSpriteKey(drawFacing));
+    const resolvedClip = $derived(
+        spriteConfig ? resolveAnimationConfig(spriteConfig)[selectedAnimation] : null,
+    );
+    const frameCount = $derived(
+        resolvedClip ? getClipFrameCount(resolvedClip, animationFacingKey) : 1,
+    );
+    const configFps = $derived(
+        spriteConfig ? getPreviewClipFps(spriteConfig, selectedAnimation) : DEFAULT_ANIMATION_FPS.idle,
+    );
+    const activeFps = $derived(overrideFps ? previewFps : configFps);
+    const displayFrameIndex = $derived(autoPlayFrames ? previewFrameIndex : manualFrameIndex);
 
-    function addEnemy(type: string) {
-        if (type === 'grunt' || type === 'shooter' || type === 'chief') {
-            enemies.push(spawnEnemy(type as EnemyType, arenaWidth, arenaHeight));
+    $effect(() => {
+        const max = Math.max(0, frameCount - 1);
+        if (manualFrameIndex > max) manualFrameIndex = max;
+        if (previewFrameIndex > max) previewFrameIndex = max;
+    });
+
+    const sampleProjectile = $derived.by((): Projectile | null => {
+        if (!previewEnemy || !shoots) return null;
+        const offset = 72;
+        return {
+            x: previewEnemy.x + previewFacing.dx * offset,
+            y: previewEnemy.y + previewFacing.dy * offset,
+            direction: { dx: previewFacing.dx, dy: previewFacing.dy },
+            speed: projectileSpeed,
+            damage: stats.damage,
+            type: 'enemy',
+        };
+    });
+
+    function resetFramePlayback() {
+        previewFrameIndex = 0;
+        previewFrameElapsed = 0;
+        manualFrameIndex = 0;
+        if (spriteConfig) {
+            previewFps = getPreviewClipFps(spriteConfig, selectedAnimation);
         }
     }
 
-    function resetAll() {
-        enemies = [];
-        enemyProjectiles = [];
-        target = { x: arenaWidth / 2, y: arenaHeight / 2 };
-        timeAlive = 0;
+    function repositionPreview(type: EnemyType = selectedType) {
+        previewEnemy = createEnemy(type, previewCenter.x, previewCenter.y);
     }
 
-    function countByType(type: string): number {
-        return enemies.filter((e) => e.type === type).length;
+    function resetPreview(type: EnemyType = selectedType) {
+        repositionPreview(type);
+        speedProbeAngle = 0;
+        resetFramePlayback();
     }
 
-    // Click an enemy to damage it, so HP bars and death can be inspected
-    function onCanvasClick(e: MouseEvent) {
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+    function selectEnemy(type: EnemyType) {
+        selectedType = type;
+        resetPreview(type);
+    }
 
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            const en = enemies[i];
-            if (Math.abs(en.x - x) <= en.size / 2 && Math.abs(en.y - y) <= en.size / 2) {
-                en.takeDamage(CLICK_DAMAGE);
-                if (!en.isAlive()) enemies.splice(i, 1);
-                enemies = enemies;
-                break;
-            }
+    function selectAnimation(state: AnimationState) {
+        selectedAnimation = state;
+        resetFramePlayback();
+    }
+
+    function selectFacing(facing: FacingDirection) {
+        previewFacing = facing;
+        manualFrameIndex = Math.min(manualFrameIndex, Math.max(0, frameCount - 1));
+    }
+
+    function setAutoPlay(enabled: boolean) {
+        if (!enabled) {
+            manualFrameIndex = previewFrameIndex;
         }
+        autoPlayFrames = enabled;
     }
 
-    function offscreen(p: Projectile): boolean {
-        return (
-            p.x < -PROJECTILE_MARGIN ||
-            p.x > arenaWidth + PROJECTILE_MARGIN ||
-            p.y < -PROJECTILE_MARGIN ||
-            p.y > arenaHeight + PROJECTILE_MARGIN
-        );
+    function stepFrame(delta: number) {
+        autoPlayFrames = false;
+        manualFrameIndex = (manualFrameIndex + delta + frameCount) % frameCount;
+    }
+
+    function clampManualFrame(index: number) {
+        manualFrameIndex = Math.max(0, Math.min(frameCount - 1, index));
     }
 
     function loop(now: number) {
         const dt = Math.min((now - lastTime) / 1000, 0.05);
         lastTime = now;
-        timeAlive += dt;
 
-        // Move the target marker with WASD (Shift = faster)
-        const speed = movement.sprint ? TARGET_SPEED * 2 : TARGET_SPEED;
-        target.x = Math.max(0, Math.min(arenaWidth, target.x + movement.dx * speed * dt));
-        target.y = Math.max(0, Math.min(arenaHeight, target.y + movement.dy * speed * dt));
-
-        // Update enemy AI; shooters return a projectile aimed at the target
-        for (const e of enemies) {
-            const result = e.update(dt, target.x, target.y);
-            if (result) enemyProjectiles.push(result);
+        if (previewEnemy && spriteConfig && autoPlayFrames) {
+            const advanced = advancePreviewFrame(
+                previewFrameElapsed,
+                previewFrameIndex,
+                spriteConfig,
+                selectedAnimation,
+                dt,
+                { fps: activeFps, facing: animationFacingKey },
+            );
+            previewFrameElapsed = advanced.elapsed;
+            previewFrameIndex = advanced.frameIndex;
         }
 
-        // Keep enemies from stacking on top of each other
-        separateEntities(enemies, 2);
-
-        // Advance projectiles and cull those that leave the arena
-        for (const p of enemyProjectiles) {
-            p.x += p.direction.dx * p.speed * dt;
-            p.y += p.direction.dy * p.speed * dt;
+        if (previewEnemy && orbitActive) {
+            speedProbeAngle += (stats.speed / speedOrbitRadius) * dt;
+            previewEnemy.x = previewCenter.x + Math.cos(speedProbeAngle) * speedOrbitRadius;
+            previewEnemy.y = previewCenter.y + Math.sin(speedProbeAngle) * speedOrbitRadius;
+        } else if (previewEnemy) {
+            previewEnemy.x = previewCenter.x;
+            previewEnemy.y = previewCenter.y;
         }
-        enemyProjectiles = enemyProjectiles.filter((p) => !offscreen(p));
 
         draw();
-        syncHud();
         frameId = requestAnimationFrame(loop);
     }
 
-    function syncHud() {
-        hudLines = [
-            `time: ${timeAlive.toFixed(1)}s`,
-            `enemies: ${enemies.length}`,
-            `grunts: ${countByType('grunt')}`,
-            `shooters: ${countByType('shooter')}`,
-            `chiefs: ${countByType('chief')}`,
-            `projectiles: ${enemyProjectiles.length}`,
-        ];
-    }
-
-    function draw() {
-        const ctx = canvas?.getContext('2d');
-        if (!ctx) return;
-
+    function drawGrid(ctx: CanvasRenderingContext2D) {
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, arenaWidth, arenaHeight);
 
         ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         ctx.lineWidth = 1;
         for (let gx = 0; gx < arenaWidth; gx += 50) {
-            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, arenaHeight); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(gx, 0);
+            ctx.lineTo(gx, arenaHeight);
+            ctx.stroke();
         }
         for (let gy = 0; gy < arenaHeight; gy += 50) {
-            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(arenaWidth, gy); ctx.stroke();
-        }
-
-        // Draw the target marker enemies are reacting to
-        ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(target.x, target.y, 8, 0, Math.PI * 2);
-        ctx.moveTo(target.x - 12, target.y);
-        ctx.lineTo(target.x + 12, target.y);
-        ctx.moveTo(target.x, target.y - 12);
-        ctx.lineTo(target.x, target.y + 12);
-        ctx.stroke();
-
-        // Draw enemies
-        for (const e of enemies) {
-            ctx.fillStyle = e.color;
-            ctx.fillRect(e.x - e.size / 2, e.y - e.size / 2, e.size, e.size);
-
-            // HP bar
-            const hpRatio = e.hp / e.maxHp;
-            const barW = e.size;
-            ctx.fillStyle = '#ccc';
-            ctx.fillRect(e.x - barW / 2, e.y - e.size / 2 - 8, barW, 4);
-            ctx.fillStyle = hpRatio > 0.5 ? '#4ade8f' : hpRatio > 0.25 ? '#f59e0b' : '#ef4444';
-            ctx.fillRect(e.x - barW / 2, e.y - e.size / 2 - 8, barW * hpRatio, 4);
-        }
-
-        // Draw enemy projectiles
-        ctx.fillStyle = '#f97316';
-        for (const p of enemyProjectiles) {
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.moveTo(0, gy);
+            ctx.lineTo(arenaWidth, gy);
+            ctx.stroke();
         }
     }
+
+    function drawSpeedGuide(ctx: CanvasRenderingContext2D) {
+        if (!previewEnemy || !orbitActive) return;
+
+        const { x: centerX, y: centerY } = previewCenter;
+
+        ctx.strokeStyle = 'rgba(96, 165, 250, 0.35)';
+        ctx.setLineDash([6, 6]);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, speedOrbitRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(30, 41, 59, 0.75)';
+        ctx.font = '12px monospace';
+        ctx.fillText(`${stats.speed} px/s`, previewEnemy.x + 14, previewEnemy.y - previewEnemy.size);
+    }
+
+    function draw() {
+        const ctx = canvas?.getContext('2d');
+        if (!ctx || !previewEnemy) return;
+
+        drawGrid(ctx);
+
+        if (spriteLibrary?.ready) {
+            drawAnimatedSpriteAtState(
+                ctx,
+                previewEnemy,
+                drawFacing,
+                spriteLibrary,
+                selectedAnimation,
+                displayFrameIndex,
+            );
+        } else {
+            drawEntityFallback(ctx, previewEnemy);
+        }
+
+        drawHitboxOutline(ctx, previewEnemy);
+
+        drawSpeedGuide(ctx);
+
+        if (sampleProjectile) {
+            drawProjectile(ctx, sampleProjectile, projectileSprites);
+        }
+
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.8)';
+        ctx.font = '11px monospace';
+        ctx.fillText(
+            `facing: ${facingToSpriteKey(drawFacing).toUpperCase()}  frame: ${displayFrameIndex + 1}/${frameCount}  fps: ${activeFps.toFixed(1)}${overrideFps ? ' (override)' : ''}`,
+            12,
+            arenaHeight - 12,
+        );
+    }
+
+    $effect(() => {
+        if (arenaWidth <= 0 || arenaHeight <= 0) return;
+        if (!previewEnemy) {
+            repositionPreview(selectedType);
+        }
+    });
+
+    $effect(() => {
+        if (typeof localStorage === 'undefined') return;
+
+        saveEnemyInspectorSettings({
+            selectedType,
+            selectedAnimation,
+            facing: facingKey,
+            showMovement,
+            autoPlayFrames,
+            manualFrameIndex,
+            previewFrameIndex,
+            overrideFps,
+            previewFps,
+        });
+    });
 
     $effect(() => {
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
-        window.addEventListener('keydown', onKeydown);
-        window.addEventListener('keyup', onKeyup);
+
+        loadAllEnemySprites().then((loaded) => {
+            enemySprites = loaded;
+        });
+        loadProjectileSprites([]).then((loaded) => {
+            projectileSprites = loaded;
+        });
 
         return () => {
             if (frameId) cancelAnimationFrame(frameId);
-            window.removeEventListener('keydown', onKeydown);
-            window.removeEventListener('keyup', onKeyup);
         };
     });
 </script>
 
-<DebugPlayground leftTitle="Spawn Lab">
+<DebugPlayground leftTitle="Enemy Inspector">
     {#snippet children()}
         <div class="relative h-full w-full">
-            <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas onGameClick={onCanvasClick} />
+            <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
         </div>
-    {/snippet}
-
-    {#snippet overlays()}
-        <RoWindow title="Status" class="absolute top-3 right-3 w-52" bodyClass="p-2">
-            <DebugHud lines={hudLines} />
-        </RoWindow>
     {/snippet}
 
     {#snippet left()}
-        <div class="flex flex-col gap-2">
-            {#each enemyClasses as ec}
-                <RoButton onclick={() => addEnemy(ec.label.toLowerCase())}>{ec.label}</RoButton>
-            {/each}
-            <RoButton onclick={resetAll}>Reset All</RoButton>
-        </div>
-        <hr class="h-px border-[#a8c8f0]/60" />
-        <table class="w-full text-sm ro-muted">
-            <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th><th>Color</th></tr></thead>
-            <tbody>
-                <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td><td style="color: {ENEMIES.grunt.color}">Grunt</td></tr>
-                <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td><td style="color: {ENEMIES.shooter.color}">Shooter</td></tr>
-                <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td><td style="color: {ENEMIES.chief.color}">Chief</td></tr>
-            </tbody>
-        </table>
-        <hr class="h-px border-[#a8c8f0]/60" />
-        <div class="flex flex-col gap-2">
-            <p class="text-sm ro-muted">WASD/Arrows: Move the target marker</p>
-            <p class="text-sm ro-muted">Shift: Move target faster</p>
-            <p class="text-sm ro-muted">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
-        </div>
+        <p class="text-sm ro-muted">
+            Dashed amber rectangle = collision hitbox ({stats.hitbox.x} x {stats.hitbox.y}px, anchored at shadow).
+        </p>
+        <RoWindow title="Enemy" bodyClass="p-3">
+            <div class="flex flex-wrap gap-2">
+                {#each ENEMY_CATALOG as entry}
+                    <RoButton
+                        class={selectedType === entry.type ? 'ring-2 ring-[#fbbf24]' : ''}
+                        onclick={() => selectEnemy(entry.type)}
+                    >
+                        {entry.label}
+                    </RoButton>
+                {/each}
+            </div>
+        </RoWindow>
+
+        <RoWindow title="Animation" bodyClass="p-3">
+            <div class="flex flex-wrap gap-2">
+                {#each ANIMATION_STATES as state}
+                    <RoButton
+                        class={selectedAnimation === state ? 'ring-2 ring-[#fbbf24]' : ''}
+                        onclick={() => selectAnimation(state)}
+                    >
+                        {ANIMATION_LABELS[state]}
+                    </RoButton>
+                {/each}
+            </div>
+        </RoWindow>
+
+        <RoWindow title="Facing" bodyClass="p-3">
+            <div class="flex flex-wrap gap-2">
+                {#each FACING_OPTIONS as option}
+                    <RoButton
+                        class={facingToSpriteKey(previewFacing) === facingToSpriteKey(option.facing)
+                            ? 'ring-2 ring-[#fbbf24]'
+                            : ''}
+                        onclick={() => selectFacing(option.facing)}
+                    >
+                        {option.label}
+                    </RoButton>
+                {/each}
+            </div>
+        </RoWindow>
+
+        <RoWindow title="Frame Debug" bodyClass="p-3 space-y-3">
+            <label class="flex items-center gap-2 text-sm ro-muted">
+                <input
+                    type="checkbox"
+                    checked={autoPlayFrames}
+                    onchange={(e) => setAutoPlay(e.currentTarget.checked)}
+                />
+                Auto-play frames
+            </label>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="ro-muted">Frame</span>
+                    <span class="font-mono text-[#1e293b]">{displayFrameIndex + 1} / {frameCount}</span>
+                </div>
+                <input
+                    type="range"
+                    min="0"
+                    max={Math.max(0, frameCount - 1)}
+                    value={displayFrameIndex}
+                    disabled={autoPlayFrames}
+                    class="w-full disabled:opacity-50"
+                    oninput={(e) => {
+                        autoPlayFrames = false;
+                        clampManualFrame(Number(e.currentTarget.value));
+                    }}
+                />
+                <div class="flex flex-wrap gap-2">
+                    <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(-1)}>Prev</RoButton>
+                    <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(1)}>Next</RoButton>
+                    <RoButton onclick={resetFramePlayback}>Reset</RoButton>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="ro-muted">FPS</span>
+                    <span class="font-mono text-[#1e293b]">
+                        {activeFps.toFixed(1)}{overrideFps ? '' : ` (config: ${configFps})`}
+                    </span>
+                </div>
+                <label class="flex items-center gap-2 text-sm ro-muted">
+                    <input type="checkbox" bind:checked={overrideFps} />
+                    Override frame rate
+                </label>
+                <input
+                    type="range"
+                    min="1"
+                    max="24"
+                    step="0.5"
+                    bind:value={previewFps}
+                    disabled={!overrideFps}
+                    class="w-full disabled:opacity-50"
+                />
+                <input
+                    type="number"
+                    min="0.5"
+                    max="60"
+                    step="0.5"
+                    bind:value={previewFps}
+                    disabled={!overrideFps}
+                    class="w-full rounded border border-[#a8c8f0]/60 bg-white/80 px-2 py-1 text-sm disabled:opacity-50"
+                />
+            </div>
+        </RoWindow>
+
+        <RoWindow title="Movement" bodyClass="p-3 space-y-2">
+            <p class="text-sm">
+                Speed: <strong class="text-[#1e293b]">{stats.speed} px/s</strong>
+            </p>
+            <label class="flex items-center gap-2 text-sm ro-muted">
+                <input type="checkbox" bind:checked={showMovement} />
+                Speed orbit when Walking is selected
+            </label>
+            <p class="text-xs ro-muted">
+                Enemy orbits the dashed path at configured speed; facing follows movement.
+            </p>
+        </RoWindow>
+
+        <RoWindow title="Stats" bodyClass="p-3">
+            <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                <dt class="ro-muted">HP</dt><dd>{stats.hp}</dd>
+                <dt class="ro-muted">Damage</dt><dd>{stats.damage}</dd>
+                <dt class="ro-muted">Anchor size</dt><dd>{stats.size}px</dd>
+                <dt class="ro-muted">Hitbox</dt><dd>{stats.hitbox.x} x {stats.hitbox.y}px</dd>
+                <dt class="ro-muted">Score</dt><dd>{stats.scoreValue}</dd>
+                <dt class="ro-muted">Range</dt>
+                <dd>{stats.range > 0 ? `${stats.range}px` : 'Melee'}</dd>
+                <dt class="ro-muted">Sprite</dt>
+                <dd>{hasArt ? 'Loaded' : 'Square fallback'}</dd>
+            </dl>
+        </RoWindow>
+
+        {#if shoots}
+            <RoWindow title="Projectile" bodyClass="p-3 space-y-2">
+                <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                    <dt class="ro-muted">Speed</dt><dd>{projectileSpeed} px/s</dd>
+                    <dt class="ro-muted">Damage</dt><dd>{stats.damage}</dd>
+                    <dt class="ro-muted">Cooldown</dt><dd>{stats.shootCooldown}ms</dd>
+                    <dt class="ro-muted">Sprite</dt><dd>Default circle</dd>
+                </dl>
+                <p class="text-xs ro-muted">
+                    Preview bolt shown beside the enemy when this panel applies. Assign a sprite on
+                    the projectile to replace the orange dot.
+                </p>
+            </RoWindow>
+        {/if}
     {/snippet}
 </DebugPlayground>

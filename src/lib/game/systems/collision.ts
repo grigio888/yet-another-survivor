@@ -2,6 +2,13 @@
 // Provides helper functions for detecting collisions between
 // projectiles and entities, and between entities themselves.
 
+import {
+    circleHitsHitbox,
+    getHitboxCollisionRadius,
+    hitboxCollidesWithCircle,
+    type Hitbox,
+} from './hitbox.js';
+
 // Projectiles are emitted by Character and Shooter entities
 // represented as simple data objects, not full Entity instances.
 export interface Projectile {
@@ -14,6 +21,18 @@ export interface Projectile {
     sprite?: string;
     spriteSize?: number;
     color?: string;
+}
+
+export type CollidableEntity = {
+    x: number;
+    y: number;
+    size: number;
+    hitbox?: Hitbox;
+};
+
+function getSeparableRadius(entity: CollidableEntity): number {
+    if (entity.hitbox) return getHitboxCollisionRadius(entity.hitbox);
+    return entity.size / 2;
 }
 
 // squared Euclidean distance between two points
@@ -59,7 +78,7 @@ export function entityCollidesWith(
  * when many entities are clustered together.
  */
 export function separateEntities(
-    entities: { x: number; y: number; size: number }[],
+    entities: CollidableEntity[],
     iterations: number = 1
 ): void {
     for (let pass = 0; pass < iterations; pass++) {
@@ -70,7 +89,7 @@ export function separateEntities(
 
                 const dx = b.x - a.x;
                 const dy = b.y - a.y;
-                const minDist = a.size / 2 + b.size / 2;
+                const minDist = getSeparableRadius(a) + getSeparableRadius(b);
                 const distSqVal = dx * dx + dy * dy;
 
                 if (distSqVal >= minDist * minDist) continue;
@@ -105,11 +124,18 @@ export function separateEntities(
  */
 export function projectileHitsEntity(
     p: Projectile,
-    e: { x: number; y: number; size: number },
+    e: CollidableEntity,
     projectileRadius: number = 2
 ): boolean {
-    const er = e.size / 2;
-    return circlesCollide(p.x, p.y, projectileRadius, e.x, e.y, er);
+    if (e.hitbox) {
+        return circleHitsHitbox(p.x, p.y, projectileRadius, {
+            x: e.x,
+            y: e.y,
+            hitbox: e.hitbox,
+        });
+    }
+
+    return circlesCollide(p.x, p.y, projectileRadius, e.x, e.y, e.size / 2);
 }
 
 /**
@@ -136,7 +162,7 @@ export interface CollisionPair {
 
 export function findCollisions(
     projectiles: Projectile[],
-    enemies: { x: number; y: number; size: number; damage: number }[],
+    enemies: ({ x: number; y: number; size: number; damage: number; hitbox?: Hitbox })[],
     projectileRadius: number = 2
 ): CollisionPair[] {
     const pairs: CollisionPair[] = [];
@@ -189,15 +215,23 @@ export interface MeleeHit {
 }
 
 export function findMeleeHits(
-    enemies: { x: number; y: number; size: number; damage: number }[],
+    enemies: ({ x: number; y: number; size: number; damage: number; hitbox?: Hitbox })[],
     character: { x: number; y: number; size: number }
 ): MeleeHit[] {
     const hits: MeleeHit[] = [];
     for (let ei = 0; ei < enemies.length; ei++) {
-        if (entityCollidesWith(enemies[ei], character)) {
+        const enemy = enemies[ei];
+        const collides = enemy.hitbox
+            ? hitboxCollidesWithCircle(
+                  { x: enemy.x, y: enemy.y, hitbox: enemy.hitbox },
+                  character,
+              )
+            : entityCollidesWith(enemy, character);
+
+        if (collides) {
             hits.push({
                 eIndex: ei,
-                damage: enemies[ei].damage,
+                damage: enemy.damage,
             });
         }
     }

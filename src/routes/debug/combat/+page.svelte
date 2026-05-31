@@ -1,7 +1,8 @@
 <script lang="ts">
     import { Mage, CHARACTER_STATS, type Character } from '$lib/game/entities/characters';
-    import type { Enemy } from '$lib/game/entities/enemies';
-    import { ENEMIES, CANVAS, WAVES } from '$lib/game/config';
+    import type { Enemy, EnemySpriteType } from '$lib/game/entities/enemies';
+    import { CANVAS, WAVES } from '$lib/game/config';
+    import { SHOOTER_STATS, CHIEF_STATS, JELLY_STATS } from '$lib/game/entities/enemies';
     import {
         loadCharacterSprites,
         snapEightDirection,
@@ -9,6 +10,10 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import { drawArenaEntities } from '$lib/game/rendering/arenaRender';
+    import {
+        loadAllEnemySprites,
+        type EnemySpriteLibrary,
+    } from '$lib/game/rendering/enemySprites';
     import {
         drawProjectiles,
         loadProjectileSprites,
@@ -19,7 +24,9 @@
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
     import type { CombatStats } from '$lib/game/systems/combat';
+    import { HitKnockback } from '$lib/game/systems/knockback';
     import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
+    import { GamePolish } from '$lib/game/polish';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
     import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
@@ -27,10 +34,13 @@
     import { RoButton, RoWindow } from '$lib/components/ui';
 
     const spawning = new SpawningSystem();
+    const polish = new GamePolish();
+    const hitKnockback = new HitKnockback();
 
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
+    let enemySprites = $state<Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null>(null);
     let projectileSprites = $state<ProjectileSpriteSet | null>(null);
     let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
@@ -47,9 +57,12 @@
     let waveQuota = $state(WAVES.initialEnemies);
     let aliveEnemies = $state(0);
     let combatLog = $state<string[]>([]);
+    let flashAlpha = $state(0);
+    let fadeAlpha = $state(0);
+    let gameOverPolishPlayed = false;
 
     const enemyTypes: { label: string; type: EnemyType }[] = [
-        { label: 'Grunt', type: 'grunt' },
+        { label: 'Jelly', type: 'jelly' },
         { label: 'Shooter', type: 'shooter' },
         { label: 'Chief', type: 'chief' },
     ];
@@ -149,7 +162,7 @@
         log.push(`Combo: ${stats.combo}`);
 
         if (result.characterHit) {
-            log.push(`Player hit: ${result.characterDamage} damage`);
+            log.push(`Player hit: ${result.characterDamage} damage${result.characterDamaged ? '' : ' (blocked)'}`);
             log.push(`Lives: ${prevLives} → ${character.lives}`);
         } else {
             log.push('Player hit: none');
@@ -166,12 +179,21 @@
 
         combatLog = log;
         invincible = character.isInvincible();
+        polish.onCombatResult(result, enemies, character);
+
+        if (result.characterDamaged) {
+            hitKnockback.trigger(character.x, character.y, character.range, enemies);
+            hitKnockback.apply(enemies, COMBAT_TICK_DT, arenaWidth, arenaHeight);
+        }
+
         syncWaveHud();
+        draw(enemies);
     }
 
     function startWaves() {
         spawning.startGame({ x: arenaWidth / 2, y: arenaHeight / 2 });
         wavesActive = true;
+        polish.onGameStart();
         syncWaveHud();
     }
 
@@ -194,6 +216,7 @@
         stats = createStats();
         timeAlive = 0;
         combatLog = [];
+        gameOverPolishPlayed = false;
         startWaves();
     }
 
@@ -224,6 +247,9 @@
         timeAlive += dt;
 
         if (!character) {
+            polish.update(dt);
+            flashAlpha = polish.effects.flashAlpha;
+            fadeAlpha = polish.effects.fadeAlpha;
             frameId = requestAnimationFrame(loop);
             return;
         }
@@ -237,6 +263,8 @@
 
         const enemies = spawning.getEnemyList();
 
+        hitKnockback.apply(enemies, dt, arenaWidth, arenaHeight);
+
         const canShoot = character.update(dt, movement);
         character.x = Math.max(character.size / 2, Math.min(arenaWidth - character.size / 2, character.x));
         character.y = Math.max(character.size / 2, Math.min(arenaHeight - character.size / 2, character.y));
@@ -249,7 +277,10 @@
                     updateFacingTowardTarget(target);
                 }
                 const projs = character.shoot(target);
-                if (projs.length > 0) playerProjectiles.push(...projs);
+                if (projs.length > 0) {
+                    playerProjectiles.push(...projs);
+                    polish.onShoot();
+                }
             }
         }
 
@@ -267,9 +298,24 @@
             p.y += p.direction.dy * p.speed * dt;
         }
 
-        applyCombatResult(
+        const combatResult = applyCombatResult(
             processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt)
         );
+        polish.onCombatResult(combatResult, enemies, character);
+
+        if (combatResult.characterDamaged) {
+            hitKnockback.trigger(character.x, character.y, character.range, enemies);
+            hitKnockback.apply(enemies, dt, arenaWidth, arenaHeight);
+        }
+
+        if (character.lives <= 0 && !gameOverPolishPlayed) {
+            polish.onGameOver();
+            gameOverPolishPlayed = true;
+        }
+
+        polish.update(dt);
+        flashAlpha = polish.effects.flashAlpha;
+        fadeAlpha = polish.effects.fadeAlpha;
 
         syncWaveHud();
         draw(enemies);
@@ -298,6 +344,10 @@
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, arenaWidth, arenaHeight);
 
+        const shake = polish.effects.getShakeOffset();
+        ctx.save();
+        ctx.translate(shake.x, shake.y);
+
         ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         ctx.lineWidth = 1;
         for (let gx = 0; gx < arenaWidth; gx += 50) {
@@ -311,6 +361,7 @@
             showRange: true,
             showHitbox: true,
             characterInvincible: invincible,
+            enemySprites,
         });
 
         drawProjectiles(ctx, playerProjectiles, projectileSprites);
@@ -321,6 +372,9 @@
             ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
             ctx.fill();
         }
+
+        polish.particles.draw(ctx);
+        ctx.restore();
     }
 
     $effect(() => {
@@ -345,6 +399,10 @@
             sprites = loaded;
         });
 
+        loadAllEnemySprites().then((loaded) => {
+            enemySprites = loaded;
+        });
+
         loadProjectileSprites(getProjectileSpriteUrls()).then((loaded) => {
             projectileSprites = loaded;
         });
@@ -354,6 +412,7 @@
             window.removeEventListener('keydown', onKeydown);
             window.removeEventListener('keyup', onKeyup);
             spawning.endGame();
+            polish.destroy();
         };
     });
 </script>
@@ -366,6 +425,20 @@
     {/snippet}
 
     {#snippet overlays()}
+        {#if flashAlpha > 0}
+            <div
+                class="pointer-events-none absolute inset-0 bg-red-300/70"
+                style:opacity={flashAlpha}
+                aria-hidden="true"
+            ></div>
+        {/if}
+        {#if fadeAlpha > 0}
+            <div
+                class="pointer-events-none absolute inset-0 bg-[#0a1628]"
+                style:opacity={fadeAlpha}
+                aria-hidden="true"
+            ></div>
+        {/if}
         <div class="relative h-full w-full flex justify-center items-end">
             {#if character}
             <RoWindow
@@ -383,7 +456,8 @@
         <div class="flex flex-col gap-2">
             <p class="text-sm ro-muted">
                 Automatic spawning via <code class="text-xs">SpawningSystem</code> — types, timing,
-                and positions follow wave config.
+                and positions follow wave config. Dashed amber rectangle = enemy hitbox; dashed ring =
+                player hitbox.
             </p>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm ro-muted">
                 <span>Status</span>
@@ -441,9 +515,9 @@
         <table class="w-full text-sm ro-muted">
             <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th></tr></thead>
             <tbody>
-                <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td></tr>
-                <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td></tr>
-                <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td></tr>
+                <tr><td>Jelly</td><td>{JELLY_STATS.hp}</td><td>{JELLY_STATS.speed}</td><td>{JELLY_STATS.damage}</td><td>Melee</td></tr>
+                <tr><td>Shooter</td><td>{SHOOTER_STATS.hp}</td><td>{SHOOTER_STATS.speed}</td><td>{SHOOTER_STATS.damage}</td><td>{SHOOTER_STATS.range}px</td></tr>
+                <tr><td>Chief</td><td>{CHIEF_STATS.hp}</td><td>{CHIEF_STATS.speed}</td><td>{CHIEF_STATS.damage}</td><td>Melee</td></tr>
             </tbody>
         </table>
         <hr class="h-px border-[#a8c8f0]/60" />

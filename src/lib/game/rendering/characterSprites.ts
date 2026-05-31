@@ -1,6 +1,12 @@
 import type { Character } from '../entities/characters/Character.js';
 import { CHARACTER_STATS, type CharacterId } from '../entities/characters/index.js';
 import type { CharacterSpriteLayout, SpriteFacing } from '../entities/characters/Character.js';
+import {
+    drawEntityShadow,
+    drawEntityVisual,
+    loadEntitySprites,
+    type EntitySpriteLibrary,
+} from './entitySprites.js';
 
 export type { CharacterSpriteLayout, SpriteFacing } from '../entities/characters/Character.js';
 
@@ -9,22 +15,10 @@ export interface FacingDirection {
     dy: number;
 }
 
-export interface CharacterSpriteSet {
-    ne: HTMLImageElement;
-    nw: HTMLImageElement;
-    se: HTMLImageElement;
-    sw: HTMLImageElement;
-    ready: boolean;
-}
+export type CharacterSpriteLibrary = EntitySpriteLibrary;
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(`Failed to load sprite: ${src}`));
-        img.src = src;
-    });
-}
+/** @deprecated Use CharacterSpriteLibrary */
+export type CharacterSpriteSet = CharacterSpriteLibrary;
 
 export function facingToSpriteKey(facing: FacingDirection): SpriteFacing {
     const sx = Math.sign(facing.dx);
@@ -36,16 +30,8 @@ export function facingToSpriteKey(facing: FacingDirection): SpriteFacing {
     return 'ne';
 }
 
-export async function loadCharacterSprites(type: CharacterId): Promise<CharacterSpriteSet> {
-    const urls = CHARACTER_STATS[type].sprite.idle;
-    const [ne, nw, se, sw] = await Promise.all([
-        loadImage(urls.ne),
-        loadImage(urls.nw),
-        loadImage(urls.se),
-        loadImage(urls.sw),
-    ]);
-
-    return { ne, nw, se, sw, ready: true };
+export async function loadCharacterSprites(type: CharacterId): Promise<CharacterSpriteLibrary> {
+    return loadEntitySprites(CHARACTER_STATS[type].sprite);
 }
 
 export function getCharacterSpriteLayout(character: Character): CharacterSpriteLayout {
@@ -61,28 +47,8 @@ export function snapEightDirection(dx: number, dy: number): FacingDirection {
     return { dx: sx * inv, dy: sy * inv };
 }
 
-/** Ground shadow — centered on the collision/hitbox position. */
 export function drawCharacterShadow(ctx: CanvasRenderingContext2D, character: Character) {
-    const { x, y, size, color } = character;
-    const r = size / 2;
-
-    const halo = ctx.createRadialGradient(x, y, r * 0.15, x, y, r * 1.05);
-    halo.addColorStop(0, 'rgba(15, 23, 42, 0.28)');
-    halo.addColorStop(0.55, 'rgba(15, 23, 42, 0.14)');
-    halo.addColorStop(1, 'rgba(15, 23, 42, 0)');
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 1.05, 0, Math.PI * 2);
-    ctx.fill();
-
-    const core = ctx.createRadialGradient(x, y, 0, x, y, r * 0.72);
-    core.addColorStop(0, 'rgba(15, 23, 42, 0.55)');
-    core.addColorStop(0.85, `${color}55`);
-    core.addColorStop(1, 'rgba(15, 23, 42, 0.22)');
-    ctx.fillStyle = core;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
-    ctx.fill();
+    drawEntityShadow(ctx, character);
 }
 
 export interface DrawCharacterVisualOptions {
@@ -108,7 +74,7 @@ export function drawCharacterVisual(
     ctx: CanvasRenderingContext2D,
     character: Character,
     facing: FacingDirection,
-    sprites: CharacterSpriteSet | null,
+    sprites: CharacterSpriteLibrary | null,
     options: DrawCharacterVisualOptions = {},
 ) {
     const { showHitbox = true, showRange = false } = options;
@@ -117,47 +83,23 @@ export function drawCharacterVisual(
         drawCharacterAttackRange(ctx, character);
     }
 
-    drawCharacterShadow(ctx, character);
-
-    if (sprites?.ready) {
-        drawCharacterSprite(ctx, character, facing, sprites);
-    }
+    drawEntityVisual(ctx, character, facing, sprites);
 
     if (showHitbox) {
         drawCharacterHitbox(ctx, character);
     }
 }
 
-/**
- * Draw a character sprite anchored so the feet sit above the shadow center.
- * Collision/hitbox remains at character.x, character.y — this is visual only.
- */
 export function drawCharacterSprite(
     ctx: CanvasRenderingContext2D,
     character: Character,
     facing: FacingDirection,
-    sprites: CharacterSpriteSet,
+    library: CharacterSpriteLibrary | null,
     layout: CharacterSpriteLayout = getCharacterSpriteLayout(character),
 ) {
-    if (!sprites.ready) return;
-
-    const key = facingToSpriteKey(facing);
-    const img = sprites[key];
-    const shadowRadius = character.size / 2;
-
-    const drawH = character.size * layout.heightScale * layout.zoom;
-    const scale = drawH / img.height;
-    const drawW = img.width * scale;
-
-    const feetY = character.y - shadowRadius * layout.liftFromShadowCenter;
-    const feetAnchor = layout.feetFromBottom * scale;
-    const drawX = character.x - drawW / 2;
-    const drawY = feetY - drawH + feetAnchor;
-
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    drawEntityVisual(ctx, character, facing, library, layout);
 }
 
-/** Debug overlay — shows collision circle independent of sprite bounds. */
 export function drawCharacterHitbox(
     ctx: CanvasRenderingContext2D,
     character: Character,

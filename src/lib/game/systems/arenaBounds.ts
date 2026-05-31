@@ -1,22 +1,26 @@
 import { CANVAS } from '../config/index.js';
 
-/** HP bar sits above the enemy body in arenaRender */
-export const ENEMY_HP_BAR_OFFSET = 8;
+/** Gap between the enemy body bottom and the HP bar */
+export const ENEMY_HP_BAR_GAP = 4;
+export const ENEMY_HP_BAR_HEIGHT = 4;
+/** Total vertical space the HP bar occupies below the enemy body */
+export const ENEMY_HP_BAR_OFFSET = ENEMY_HP_BAR_GAP + ENEMY_HP_BAR_HEIGHT;
 
-/** True when the enemy body + HP bar does not overlap the canvas viewport. */
+/** True when the enemy hitbox + HP bar does not overlap the canvas viewport. */
 export function isOutsideCanvasView(
     x: number,
     y: number,
-    size: number,
+    bodyWidth: number,
+    bodyHeight: number = bodyWidth,
     width: number = CANVAS.width,
     height: number = CANVAS.height,
     margin: number = 0,
 ): boolean {
-    const half = size / 2 + margin;
-    const top = y - half - ENEMY_HP_BAR_OFFSET;
-    const bottom = y + half;
-    const left = x - half;
-    const right = x + half;
+    const halfW = bodyWidth / 2 + margin;
+    const top = y - bodyHeight - margin;
+    const bottom = y + ENEMY_HP_BAR_OFFSET + margin;
+    const left = x - halfW;
+    const right = x + halfW;
 
     return bottom < 0 || top > height || right < 0 || left > width;
 }
@@ -25,9 +29,10 @@ export function isOutsideCanvasView(
 export function isInsideCanvasView(
     x: number,
     y: number,
-    size: number,
+    bodyWidth: number,
+    bodyHeight: number = bodyWidth,
     width: number = CANVAS.width,
     height: number = CANVAS.height,
 ): boolean {
-    return !isOutsideCanvasView(x, y, size, width, height);
+    return !isOutsideCanvasView(x, y, bodyWidth, bodyHeight, width, height);
 }

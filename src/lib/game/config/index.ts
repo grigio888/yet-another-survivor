@@ -17,43 +17,15 @@ export const WAVES = {
     spawnMargin: 100,
 };
 
-// Enemy types and their stats
-export const ENEMIES = {
-    grunt: {
-        hp: 30,
-        speed: 80, // pixels per second
-        damage: 1, // reduces player life by this amount
-        range: 0, // melee only
-        shootCooldown: 0,
-        scoreValue: 10,
-        color: '#4ade8f', // green
-        size: 24,
-    },
-    shooter: {
-        hp: 20,
-        speed: 50,
-        damage: 15, // projectile damage
-        range: 250, // min distance before shooting
-        shootCooldown: 2000, // ms between enemy shots
-        scoreValue: 25,
-        color: '#f97316', // orange
-        size: 20,
-    },
-    chief: {
-        hp: 150,
-        speed: 35,
-        damage: 2,
-        range: 0,
-        shootCooldown: 0,
-        scoreValue: 100,
-        color: '#f43f5e', // pink/red
-        size: 36,
-    },
-};
-
 // Scoring configuration
 export const SCORING = {
     timeBonusPerSec: 1, // points per second survived
     comboMultiplier: 1.2, // multiplier per consecutive kill streak
     comboDecayTime: 3000, // ms before combo resets
+};
+
+/** Repulsion applied to nearby enemies when the player takes damage */
+export const KNOCKBACK = {
+    durationMs: 1200,
+    maxDistance: 90, // total outward displacement over the eased duration
 };

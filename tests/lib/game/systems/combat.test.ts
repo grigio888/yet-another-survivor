@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { processCombat, type CombatStats } from '$lib/game/systems/combat.js';
 import { Mage, type Character } from '$lib/game/entities/characters/index.js';
 import { Enemy } from '$lib/game/entities/enemies/Enemy.js';
-import { ENEMIES, SCORING } from '$lib/game/config/index.js';
+import { TEST_ENEMY_SPRITE } from '../../../helpers/enemyTestSprite.js';
+import { GRUNT_STATS } from '$lib/game/entities/enemies/Grunt.js';
+import { SCORING } from '$lib/game/config/index.js';
 import type { Projectile } from '$lib/game/systems/collision.js';
 
 function createMockStats(): CombatStats {
@@ -43,6 +45,7 @@ describe('Combat System', () => {
                 damage: 1,
                 size: 24,
                 color: '#4ade8f',
+                sprite: TEST_ENEMY_SPRITE,
             });
             enemies.push(enemy);
 
@@ -73,6 +76,8 @@ describe('Combat System', () => {
                 damage: 1,
                 size: 24,
                 color: '#4ade8f',
+                scoreValue: GRUNT_STATS.scoreValue,
+                sprite: TEST_ENEMY_SPRITE,
             });
             enemies.push(enemy);
 
@@ -93,7 +98,7 @@ describe('Combat System', () => {
             // Should have one kill
             expect(result.combat.kills).toHaveLength(1);
             expect(result.combat.kills[0].enemyType).toBe('grunt');
-            expect(result.combat.kills[0].scoreValue).toBe(ENEMIES.grunt.scoreValue);
+            expect(result.combat.kills[0].scoreValue).toBe(GRUNT_STATS.scoreValue);
         });
 
         it('applies combo multiplier to score', () => {
@@ -112,6 +117,8 @@ describe('Combat System', () => {
                     damage: 1,
                     size: 24,
                     color: '#4ade8f',
+                    scoreValue: GRUNT_STATS.scoreValue,
+                    sprite: TEST_ENEMY_SPRITE,
                 }));
 
                 playerProjectiles.push({
@@ -148,6 +155,7 @@ describe('Combat System', () => {
 
             // Player should take damage (lose a life since damage is >= 1)
             expect(result.characterHit).toBe(true);
+            expect(result.characterDamaged).toBe(true);
             expect(result.characterDamage).toBe(15);
             expect(character.lives).toBeLessThan(prevLives);
         });
@@ -167,6 +175,7 @@ describe('Combat System', () => {
             const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
 
             expect(result.characterHit).toBe(true);
+            expect(result.characterDamaged).toBe(false);
             expect(character.lives).toBe(prevLives);
             expect(result.combat.enemyProjectilesToRemove.has(0)).toBe(true);
         });
@@ -181,12 +190,14 @@ describe('Combat System', () => {
                 damage: 1,
                 size: 24,
                 color: '#4ade8f',
+                sprite: TEST_ENEMY_SPRITE,
             }));
 
             const prevLives = character.lives;
             const result = processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, 0.1);
 
             expect(result.characterHit).toBe(true);
+            expect(result.characterDamaged).toBe(true);
             expect(result.characterDamage).toBe(1);
             expect(character.lives).toBe(prevLives - 1);
         });
@@ -201,6 +212,7 @@ describe('Combat System', () => {
                 damage: 1,
                 size: 24,
                 color: '#4ade8f',
+                sprite: TEST_ENEMY_SPRITE,
             });
             enemies.push(enemy);
 

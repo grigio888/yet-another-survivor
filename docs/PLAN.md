@@ -24,12 +24,13 @@ src/lib/game/
 ├── input/       # [done] Keyboard input handling
 ├── entities/    # [done] Entity, Character, Enemy, Grunt, Shooter, Chief
 ├── systems/     # [done] collision, combat, spawning
-├── engine/      # [in progress] SurvivorSession loop + phase state
+├── engine/      # [done] SurvivorSession loop + phase state
 ├── screens/     # [done] menu + game over content
+├── polish/      # [done] GamePolish facade (audio + particles + effects)
 ├── ui/          # RO-style DOM components live in src/lib/components/ui/
-├── audio/       # [todo] Sound effects, music
-├── particles/   # [todo] Visual particle effects
-├── effects/     # [todo] Screen effects (shake, fade)
+├── audio/       # [done] procedural Web Audio SFX
+├── particles/   # [done] kill/hit particle bursts
+├── effects/     # [done] screen shake, flash, fade
 └── utils/       # [todo] Helper functions
 
 src/routes/debug/  # [done] Manual harnesses for character & enemies
@@ -38,11 +39,9 @@ tests/             # [partial] Vitest unit tests (combat covered)
 
 ## Status Summary
 
-- **Done**: config, input manager, all entities, collision/combat/spawning
-  systems, debug harnesses, combat unit tests.
-- **In progress / next**: wiring systems together in a real game engine and
-  shipping a playable main route.
-- **Not started**: screens, HUD, audio, particles, effects, broader tests.
+- **Done**: config, input, entities, systems, debug harnesses, main game route,
+  screens/UI, audio, particles, screen effects.
+- **Next**: mobile controls, persistence, power-ups, broader polish tuning.
 
 ## Phase 1: Core Foundation
 
@@ -107,11 +106,12 @@ tests/             # [partial] Vitest unit tests (combat covered)
 - `src/routes/+page.svelte` — main game route (menu → play → pause → game over)
 - Debug routes keep harness overlays (`DebugHud`, `CharacterItemLoadout`)
 
-## Phase 5: Polish — [todo]
+## Phase 5: Polish — [done]
 
-- `audio/manager.ts` — shoot, hit, enemy_death, game_over via Web Audio API
-- `particles/manager.ts` — explode/spark/blood on kills and hits
-- `effects/manager.ts` — screen shake, flashes, fade transitions
+- `audio/manager.ts` — procedural shoot, hit, enemy_death, game_over via Web Audio API
+- `particles/manager.ts` — colored bursts on kills, sparks on player hits
+- `effects/manager.ts` — screen shake, red hit flash, fade on game start
+- `polish/GamePolish.ts` — wires feedback into `SurvivorSession` combat events
 
 ## Implementation Order
 
@@ -126,7 +126,7 @@ tests/             # [partial] Vitest unit tests (combat covered)
 9. ~~HUD and lives display~~ (done — `GameHud`)
 10. ~~Game over screen + restart~~ (done)
 11. ~~Main menu screen~~ (done)
-12. Audio, particles, effects
+12. ~~Audio, particles, effects~~ (done)
 
 ## Resolved Decisions
 

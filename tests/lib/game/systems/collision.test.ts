@@ -61,6 +61,18 @@ describe('projectileHitsEntity', () => {
     it('detects projectile hitting entity center', () =>
         expect(projectileHitsEntity(createProjectile(10, 10, 400, 0, 0), createEntity(10, 10, 20))).toBe(true));
 
+    it('uses rectangular hitboxes when provided', () => {
+        const enemy = {
+            x: 10,
+            y: 10,
+            size: 10,
+            hitbox: { x: 40, y: 20 },
+        };
+
+        expect(projectileHitsEntity(createProjectile(28, 10, 400, 0, 0), enemy)).toBe(true);
+        expect(projectileHitsEntity(createProjectile(40, 10, 400, 0, 0), enemy)).toBe(false);
+    });
+
     it('detects projectile hitting within entity radius', () =>
         expect(projectileHitsEntity(createProjectile(15, 10, 400, 0, 0), createEntity(10, 10, 20))).toBe(true));
 
@@ -194,6 +206,15 @@ describe('findMeleeHits', () => {
 
     it('detects single enemy colliding with character', () => {
         const enemies = [createEntity(5, 0, 20, 2)];
+        const hits = findMeleeHits(enemies, character);
+
+        expect(hits.length).toBe(1);
+        expect(hits[0].eIndex).toBe(0);
+        expect(hits[0].damage).toBe(2);
+    });
+
+    it('detects single enemy colliding with character using a hitbox', () => {
+        const enemies = [{ x: 5, y: 0, size: 10, damage: 2, hitbox: { x: 30, y: 20 } }];
         const hits = findMeleeHits(enemies, character);
 
         expect(hits.length).toBe(1);

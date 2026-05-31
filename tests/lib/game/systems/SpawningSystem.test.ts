@@ -42,7 +42,7 @@ describe('SpawningSystem', () => {
 
         expect(enemy.type).toBe('chief');
         expect(system.getAliveCount()).toBe(1);
-        expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.size)).toBe(true);
+        expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.hitbox.x, enemy.hitbox.y)).toBe(true);
         expect(system.getEnemyList()).toContain(enemy);
     });
 
@@ -55,6 +55,7 @@ describe('SpawningSystem', () => {
         system.pruneDeadEnemies();
 
         expect(system.getAliveCount()).toBe(0);
+        expect(system.getEnemyList()).toHaveLength(0);
     });
 
     it('updateAllEnemies returns shooter projectiles and moves grunts', () => {

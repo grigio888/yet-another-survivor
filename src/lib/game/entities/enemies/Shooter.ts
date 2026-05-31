@@ -1,8 +1,23 @@
 // Enemy that shoots at player when in range
-import { ENEMIES } from '../../config/index.js';
+import { CANVAS } from '../../config/index.js';
 import { isInsideCanvasView } from '../../systems/arenaBounds.js';
 import { Enemy } from './Enemy.js';
+import type { EnemyStats } from './types.js';
 import type { Projectile } from '../../systems/collision.js';
+
+export const SHOOTER_STATS = {
+    hp: 20,
+    speed: 50,
+    damage: 15, // projectile damage
+    range: 250, // max distance to shoot at the player
+    shootCooldown: 2000, // ms between enemy shots
+    scoreValue: 25,
+    color: '#f97316', // orange
+    size: 20,
+    hitbox: { x: 20, y: 20 },
+    stagger: 12,
+    staggerTime: 350,
+} as const satisfies EnemyStats;
 
 export class Shooter extends Enemy {
     constructor(x?: number, y?: number) {
@@ -10,38 +25,67 @@ export class Shooter extends Enemy {
             x: x ?? 0,
             y: y ?? 0,
             type: 'shooter',
-            size: ENEMIES.shooter.size,
-            hp: ENEMIES.shooter.hp,
-            maxHp: ENEMIES.shooter.hp,
-            speed: ENEMIES.shooter.speed,
-            damage: ENEMIES.shooter.damage,
-            range: ENEMIES.shooter.range,
-            color: ENEMIES.shooter.color,
-            scoreValue: ENEMIES.shooter.scoreValue,
+            size: SHOOTER_STATS.size,
+            hp: SHOOTER_STATS.hp,
+            maxHp: SHOOTER_STATS.hp,
+            speed: SHOOTER_STATS.speed,
+            damage: SHOOTER_STATS.damage,
+            range: SHOOTER_STATS.range,
+            color: SHOOTER_STATS.color,
+            scoreValue: SHOOTER_STATS.scoreValue,
+            stagger: SHOOTER_STATS.stagger,
+            staggerTime: SHOOTER_STATS.staggerTime,
+            hitbox: SHOOTER_STATS.hitbox,
         });
     }
 
-    update(dt: number, targetX: number, targetY: number): Projectile | null {
+    update(
+        dt: number,
+        targetX: number,
+        targetY: number,
+        arenaWidth: number = CANVAS.width,
+        arenaHeight: number = CANVAS.height,
+    ): Projectile | null {
+        if (this.isStaggered()) {
+            super.update(dt, targetX, targetY, arenaWidth, arenaHeight);
+            this.tickStaggered(dt);
+            return null;
+        }
+
         const dx = targetX - this.x;
         const dy = targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const elapsed = this.lastShot;
-        const insideCanvas = isInsideCanvasView(this.x, this.y, this.size);
+        const insideCanvas = isInsideCanvasView(
+            this.x,
+            this.y,
+            this.hitbox.x,
+            this.hitbox.y,
+            arenaWidth,
+            arenaHeight,
+        );
         const canShoot = insideCanvas && dist > 0 && dist <= this.range;
 
-        // Keep walking until on-screen and close enough to fire
         if (!canShoot) {
+            let moved = false;
             if (dist > 0) {
+                moved = true;
+                this.faceToward(dx, dy);
                 this.x += (dx / dist) * this.speed * dt;
                 this.y += (dy / dist) * this.speed * dt;
             }
 
-            super.update(dt, targetX, targetY);
+            super.update(dt, targetX, targetY, arenaWidth, arenaHeight);
+            this.tickAnimator(dt, moved);
             return null;
         }
 
-        if (elapsed >= ENEMIES.shooter.shootCooldown) {
+        this.faceToward(dx, dy);
+
+        if (elapsed >= SHOOTER_STATS.shootCooldown) {
             this.lastShot = 0;
+            super.update(dt, targetX, targetY, arenaWidth, arenaHeight);
+            this.tickAnimator(dt, false, true);
 
             return {
                 x: this.x,
@@ -53,7 +97,8 @@ export class Shooter extends Enemy {
             };
         }
 
-        super.update(dt, targetX, targetY);
+        super.update(dt, targetX, targetY, arenaWidth, arenaHeight);
+        this.tickAnimator(dt, false);
         return null;
     }
 }

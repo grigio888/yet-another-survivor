@@ -1,6 +1,20 @@
 // Tanky boss enemy
-import { ENEMIES } from '../../config/index.js';
 import { Enemy } from './Enemy.js';
+import type { EnemyStats } from './types.js';
+
+export const CHIEF_STATS = {
+    hp: 150,
+    speed: 35,
+    damage: 2,
+    range: 0,
+    shootCooldown: 0,
+    scoreValue: 100,
+    color: '#f43f5e', // pink/red
+    size: 36,
+    hitbox: { x: 36, y: 36 },
+    stagger: 30,
+    staggerTime: 250,
+} as const satisfies EnemyStats;
 
 export class Chief extends Enemy {
     constructor(x?: number, y?: number) {
@@ -8,32 +22,41 @@ export class Chief extends Enemy {
             x: x ?? 0,
             y: y ?? 0,
             type: 'chief',
-            size: ENEMIES.chief.size,
-            hp: ENEMIES.chief.hp,
-            maxHp: ENEMIES.chief.hp,
-            speed: ENEMIES.chief.speed,
-            damage: ENEMIES.chief.damage,
-            range: ENEMIES.chief.range,
-            color: ENEMIES.chief.color,
-            scoreValue: ENEMIES.chief.scoreValue,
+            size: CHIEF_STATS.size,
+            hp: CHIEF_STATS.hp,
+            maxHp: CHIEF_STATS.hp,
+            speed: CHIEF_STATS.speed,
+            damage: CHIEF_STATS.damage,
+            range: CHIEF_STATS.range,
+            color: CHIEF_STATS.color,
+            scoreValue: CHIEF_STATS.scoreValue,
+            stagger: CHIEF_STATS.stagger,
+            staggerTime: CHIEF_STATS.staggerTime,
+            hitbox: CHIEF_STATS.hitbox,
         });
     }
 
     update(dt: number, targetX: number, targetY: number): null {
+        if (this.isStaggered()) {
+            super.update(dt, targetX, targetY);
+            this.tickStaggered(dt);
+            return null;
+        }
+
         const dx = targetX - this.x;
         const dy = targetY - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        let moved = false;
 
-        // Slow but relentless pursuit
         if (dist > 0) {
-            const moveX = (dx / dist) * this.speed * dt;
-            const moveY = (dy / dist) * this.speed * dt;
-
-            this.x += moveX;
-            this.y += moveY;
+            moved = true;
+            this.faceToward(dx, dy);
+            this.x += (dx / dist) * this.speed * dt;
+            this.y += (dy / dist) * this.speed * dt;
         }
 
         super.update(dt, targetX, targetY);
+        this.tickAnimator(dt, moved);
         return null;
     }
 }

@@ -2,7 +2,7 @@
 // Handles damage calculation, health updates, kill detection, scoring,
 // and player life loss.
 
-import { ENEMIES, SCORING } from '../config/index.js';
+import { SCORING } from '../config/index.js';
 import type { Projectile, CollisionPair, CharacterHit, MeleeHit } from './collision.js';
 import { findCollisions, findCharacterHits, findMeleeHits } from './collision.js';
 import { Enemy } from '../entities/enemies/Enemy.js';
@@ -24,6 +24,7 @@ export interface CombatResult {
 export interface BattleResult {
     combat: CombatResult;
     characterHit: boolean;
+    characterDamaged: boolean;
     characterDamage: number;
 }
 
@@ -45,7 +46,7 @@ function applyDamageToEnemy(
     damage: number
 ): number {
     const prevHp = enemy.hp;
-    enemy.hp -= damage;
+    enemy.takeDamage(damage);
     return prevHp - enemy.hp;
 }
 
@@ -70,13 +71,10 @@ function resolveProjectileDamage(
         projectilesToRemove.add(pIndex);
 
         if (wasAlive && !enemy.isAlive() && damageDealt > 0) {
-            const enemyType = enemy.type;
-            const enemyConfig = ENEMIES[enemyType as keyof typeof ENEMIES];
-            const scoreValue = enemyConfig?.scoreValue || 10;
             kills.push({
                 enemyIndex: eIndex,
-                enemyType,
-                scoreValue,
+                enemyType: enemy.type,
+                scoreValue: enemy.scoreValue,
             });
         }
     }
@@ -144,6 +142,7 @@ export function processCombat(
 
     const characterHit = projectileCharCollisions.length > 0 || charEnemyCollisions.length > 0;
     let characterDamage = 0;
+    let characterDamaged = false;
     const enemyProjectilesToRemove = new Set<number>();
 
     if (characterHit) {
@@ -155,7 +154,10 @@ export function processCombat(
             characterDamage += hit.damage;
         }
 
-        character.takeDamage(characterDamage);
+        if (characterDamage > 0 && !character.isInvincible()) {
+            character.takeDamage(characterDamage);
+            characterDamaged = true;
+        }
     }
 
     const scoreGained = updateCombatStats(stats, playerKills, dt);
@@ -168,6 +170,7 @@ export function processCombat(
             enemyProjectilesToRemove,
         },
         characterHit,
+        characterDamaged,
         characterDamage,
     };
 }

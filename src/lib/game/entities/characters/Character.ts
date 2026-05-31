@@ -7,22 +7,18 @@ import {
 } from '../../items/index.js';
 import type { AttackStats, CharacterBaseStats } from '../../items/types.js';
 import type { Projectile } from '../../systems/collision.js';
+import { SpriteAnimator } from '../../animation/SpriteAnimator.js';
+import type {
+    EntitySpriteConfig,
+    SpriteFacing,
+    SpriteLayout,
+    SpriteUrls,
+} from '../../animation/spriteConfig.js';
 
-export type SpriteFacing = 'ne' | 'nw' | 'se' | 'sw';
-
-export type CharacterSpriteUrls = Record<SpriteFacing, string>;
-
-export type CharacterSpriteLayout = {
-    feetFromBottom: number;
-    heightScale: number;
-    zoom: number;
-    liftFromShadowCenter: number;
-};
-
-export type CharacterSpriteConfig = {
-    layout: CharacterSpriteLayout;
-    idle: CharacterSpriteUrls;
-};
+export type { SpriteFacing, SpriteLayout };
+export type CharacterSpriteUrls = SpriteUrls;
+export type CharacterSpriteLayout = SpriteLayout;
+export type CharacterSpriteConfig = EntitySpriteConfig;
 
 export type CharacterStats = {
     type: string;
@@ -42,6 +38,7 @@ export class Character extends Entity {
     public lives: number;
     public invincibleUntil: number;
     public readonly inventory: ItemInventory;
+    public readonly animator: SpriteAnimator;
     protected stats: CharacterStats;
 
     constructor(options: {
@@ -68,6 +65,7 @@ export class Character extends Entity {
         this.type = stats.type;
         this.stats = stats;
         this.inventory = inventory;
+        this.animator = new SpriteAnimator(stats.sprite);
         this.range = inventory.getMaxRange(baseStats);
         this.lives = stats.maxLives;
         this.invincibleUntil = 0;
@@ -111,6 +109,11 @@ export class Character extends Entity {
         this.range = this.inventory.getMaxRange(this.baseStats);
         this.damage = this.inventory.getMaxDamage(this.baseStats);
 
+        this.animator.update(dt, {
+            isMoving: dx !== 0 || dy !== 0,
+            isDead: this.lives <= 0,
+        });
+
         return this.inventory.canFireAny(this.baseStats);
     }
 
@@ -140,7 +143,11 @@ export class Character extends Entity {
     }
 
     shoot(target: { x: number; y: number }): Projectile[] {
-        return this.inventory.fireAll(this.baseStats, { x: this.x, y: this.y }, target);
+        const projectiles = this.inventory.fireAll(this.baseStats, { x: this.x, y: this.y }, target);
+        if (projectiles.length > 0) {
+            this.animator.triggerAttack();
+        }
+        return projectiles;
     }
 
     takeDamage(amount: number) {
@@ -151,6 +158,7 @@ export class Character extends Entity {
         this.lives--;
         this.hp = this.lives > 0 ? this.maxHp : 0;
         this.invincibleUntil = Date.now() + this.stats.invincibleFrames;
+        this.animator.triggerHit();
     }
 
     draw(ctx: CanvasRenderingContext2D) {

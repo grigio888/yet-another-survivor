@@ -13,6 +13,11 @@
         loadProjectileSprites,
         type ProjectileSpriteSet,
     } from '$lib/game/rendering/projectileSprites';
+    import {
+        loadAllEnemySprites,
+        type EnemySpriteLibrary,
+    } from '$lib/game/rendering/enemySprites';
+    import type { EnemySpriteType } from '$lib/game/entities/enemies';
     import { getProjectileSpriteUrls } from '$lib/game/items';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
@@ -37,11 +42,14 @@
     let timeAlive = $state(0);
     let character = $state(session.character);
     let sprites = $state<CharacterSpriteSet | null>(null);
+    let enemySprites = $state<Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null>(null);
     let projectileSprites = $state<ProjectileSpriteSet | null>(null);
 
     let frameId = 0;
     let lastTime = 0;
     let pauseLatch = false;
+    let flashAlpha = $state(0);
+    let fadeAlpha = $state(0);
 
     const gameOverSummary = $derived(buildGameOverSummary(stats, timeAlive));
 
@@ -89,10 +97,14 @@
             session.tick(dt, input.getMovementVector());
         }
 
+        session.updatePolish(dt);
+
         const ctx = canvas?.getContext('2d');
         if (ctx) {
-            session.draw(ctx, sprites, projectileSprites);
+            session.draw(ctx, sprites, projectileSprites, enemySprites);
         }
+        flashAlpha = session.polish.effects.flashAlpha;
+        fadeAlpha = session.polish.effects.fadeAlpha;
         syncFromSession();
 
         frameId = requestAnimationFrame(loop);
@@ -101,7 +113,7 @@
     function drawIdleArena() {
         const ctx = canvas?.getContext('2d');
         if (!ctx) return;
-        session.draw(ctx, sprites, projectileSprites);
+        session.draw(ctx, sprites, projectileSprites, enemySprites);
     }
 
     $effect(() => {
@@ -122,6 +134,10 @@
             sprites = loaded;
         });
 
+        loadAllEnemySprites().then((loaded) => {
+            enemySprites = loaded;
+        });
+
         loadProjectileSprites(getProjectileSpriteUrls()).then((loaded) => {
             projectileSprites = loaded;
         });
@@ -136,6 +152,22 @@
 
 <div class="relative h-dvh min-h-0 w-full overflow-hidden bg-(--bg-color-900)">
     <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
+
+    {#if flashAlpha > 0}
+        <div
+            class="pointer-events-none absolute inset-0 z-40 bg-red-300/70"
+            style:opacity={flashAlpha}
+            aria-hidden="true"
+        ></div>
+    {/if}
+
+    {#if fadeAlpha > 0}
+        <div
+            class="pointer-events-none absolute inset-0 z-40 bg-[#0a1628]"
+            style:opacity={fadeAlpha}
+            aria-hidden="true"
+        ></div>
+    {/if}
 
     {#if phase === 'playing'}
         <div class="pointer-events-none absolute inset-0">

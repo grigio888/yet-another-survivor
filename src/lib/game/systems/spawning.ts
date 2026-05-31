@@ -1,25 +1,29 @@
 // Enemy spawning and wave management system
 // Controls wave progression, enemy creation, and spawn positions
 
-import { CANVAS, ENEMIES, WAVES } from '../config/index.js';
+import { CANVAS, WAVES } from '../config/index.js';
 import { sortByDepth } from '../rendering/depthSort.js';
-import { Grunt, Shooter, Chief, type Enemy } from '../entities/enemies/index.js';
+import { Grunt, Shooter, Chief, Jelly, ENEMY_STATS, type Enemy } from '../entities/enemies/index.js';
+import type { EnemyType } from '../entities/enemies/types.js';
 import { ENEMY_HP_BAR_OFFSET, isOutsideCanvasView } from './arenaBounds.js';
+import { getEnemySpawnExtent } from '../entities/enemies/catalog.js';
 
 export { isInsideCanvasView, isOutsideCanvasView } from './arenaBounds.js';
 
 // Probability weights for enemy types at each wave tier
 // Keys represent the minimum wave number where that distribution applies
-const WAVE_COMPOSITION = {
-    1: { grunt: 1.0, shooter: 0, chief: 0 },
-    2: { grunt: 0.7, shooter: 0.3, chief: 0 },
-    3: { grunt: 0.5, shooter: 0.4, chief: 0.1 },
-    5: { grunt: 0.3, shooter: 0.5, chief: 0.2 },
-    8: { grunt: 0.2, shooter: 0.4, chief: 0.4 },
-    12: { grunt: 0.1, shooter: 0.3, chief: 0.6 },
+const WAVE_COMPOSITION: Record<number, Record<EnemyType, number>> = {
+    1: { grunt: 0.85, jelly: 0.15, shooter: 0, chief: 0 },
+    2: { grunt: 0.55, jelly: 0.15, shooter: 0.3, chief: 0 },
+    3: { grunt: 0.4, jelly: 0.1, shooter: 0.4, chief: 0.1 },
+    5: { grunt: 0.25, jelly: 0.1, shooter: 0.45, chief: 0.2 },
+    8: { grunt: 0.15, jelly: 0.1, shooter: 0.35, chief: 0.4 },
+    12: { grunt: 0.05, jelly: 0.05, shooter: 0.3, chief: 0.6 },
 };
 
-function getComposition(wave: number): { grunt: number; shooter: number; chief: number } {
+const ENEMY_TYPE_ORDER: EnemyType[] = ['grunt', 'jelly', 'shooter', 'chief'];
+
+function getComposition(wave: number): Record<EnemyType, number> {
     let best = WAVE_COMPOSITION[1];
     for (const [key, value] of Object.entries(WAVE_COMPOSITION)) {
         if (wave >= parseInt(key)) {
@@ -29,19 +33,25 @@ function getComposition(wave: number): { grunt: number; shooter: number; chief: 
     return best;
 }
 
-/**
- * Selects an enemy type based on wave composition weights.
- */
-function selectEnemyType(wave: number): 'grunt' | 'shooter' | 'chief' {
+function selectEnemyType(wave: number): EnemyType {
     const comp = getComposition(wave);
     const r = Math.random();
-    
-    if (r < comp.grunt) return 'grunt';
-    if (r < comp.grunt + comp.shooter) return 'shooter';
+    let cumulative = 0;
+
+    for (const type of ENEMY_TYPE_ORDER) {
+        cumulative += comp[type];
+        if (r < cumulative) return type;
+    }
+
     return 'chief';
 }
 
-const MAX_ENEMY_SIZE = Math.max(ENEMIES.grunt.size, ENEMIES.shooter.size, ENEMIES.chief.size);
+const MAX_ENEMY_SIZE = Math.max(
+    getEnemySpawnExtent('grunt'),
+    getEnemySpawnExtent('shooter'),
+    getEnemySpawnExtent('chief'),
+    getEnemySpawnExtent('jelly'),
+);
 
 /**
  * Pick a random spawn position outside the visible canvas area.
@@ -54,18 +64,20 @@ export function pickSpawnPosition(
     margin: number = WAVES.spawnMargin,
     entitySize: number = MAX_ENEMY_SIZE,
 ): { x: number; y: number } {
-    const pad = entitySize / 2 + ENEMY_HP_BAR_OFFSET + margin;
-    const minX = -pad;
-    const maxX = width + pad;
-    const minY = -pad;
-    const maxY = height + pad;
+    const padX = entitySize / 2 + ENEMY_HP_BAR_OFFSET + margin;
+    const padYUp = entitySize + margin;
+    const padYDown = ENEMY_HP_BAR_OFFSET + margin;
+    const minX = -padX;
+    const maxX = width + padX;
+    const minY = -padYDown;
+    const maxY = height + padYUp;
 
     // Rejection sample until the full enemy visual sits outside the viewport
     for (let attempt = 0; attempt < 32; attempt++) {
         const x = minX + Math.random() * (maxX - minX);
         const y = minY + Math.random() * (maxY - minY);
 
-        if (isOutsideCanvasView(x, y, entitySize, width, height)) {
+        if (isOutsideCanvasView(x, y, entitySize, entitySize, width, height)) {
             return { x, y };
         }
     }
@@ -76,17 +88,17 @@ export function pickSpawnPosition(
 
     switch (edge) {
         case 0:
-            return { x: along * width, y: -pad };
+            return { x: along * width, y: -padYDown };
         case 1:
-            return { x: along * width, y: height + pad };
+            return { x: along * width, y: height + padYUp };
         case 2:
-            return { x: -pad, y: along * height };
+            return { x: -padX, y: along * height };
         default:
-            return { x: width + pad, y: along * height };
+            return { x: width + padX, y: along * height };
     }
 }
 
-export type EnemyType = 'grunt' | 'shooter' | 'chief';
+export type { EnemyType } from '../entities/enemies/types.js';
 
 /**
  * Create a new enemy instance of the given type at the specified position.
@@ -99,6 +111,8 @@ export function createEnemy(type: EnemyType, x: number, y: number): Enemy {
             return new Shooter(x, y);
         case 'chief':
             return new Chief(x, y);
+        case 'jelly':
+            return new Jelly(x, y);
     }
 }
 
@@ -108,8 +122,8 @@ export function spawnEnemy(
     width: number = CANVAS.width,
     height: number = CANVAS.height,
 ): Enemy {
-    const size = ENEMIES[type].size;
-    const pos = pickSpawnPosition(width, height, WAVES.spawnMargin, size);
+    const extent = getEnemySpawnExtent(type);
+    const pos = pickSpawnPosition(width, height, WAVES.spawnMargin, extent);
     return createEnemy(type, pos.x, pos.y);
 }
 
@@ -209,12 +223,12 @@ export class SpawningSystem {
             this.spawnedThisWave++;
             
             const type = selectEnemyType(this.wave);
-            const size = ENEMIES[type].size;
+            const extent = getEnemySpawnExtent(type);
             const pos = pickSpawnPosition(
                 this.arenaWidth,
                 this.arenaHeight,
                 WAVES.spawnMargin,
-                size,
+                extent,
             );
             const enemy = createEnemy(type, pos.x, pos.y);
             
@@ -222,13 +236,9 @@ export class SpawningSystem {
             result.spawned.push(enemy);
         }
         
-        // Remove dead enemies
-        this.enemies = this.enemies.filter(e => e.isAlive());
-        
-        // Check if all enemies spawned are either dead or the wave timer expired
-        // This handles the case where player kills all enemies before wave ends
-        const aliveCount = this.enemies.length;
-        if (this.spawnedThisWave >= this.waveEnemyCount && aliveCount === 0) {
+        this.enemies = this.enemies.filter((e) => !e.isReadyToRemove());
+
+        if (this.spawnedThisWave >= this.waveEnemyCount && this.getAliveCount() === 0) {
             this.advanceWave();
             result.waveEnded = true;
         }
@@ -256,14 +266,17 @@ export class SpawningSystem {
         const projectiles: any[] = [];
         
         for (const enemy of this.enemies) {
-            const result = enemy.update(dt, targetX, targetY);
-            if (result) {
-                projectiles.push(result);
+            if (enemy.isAlive()) {
+                const result = enemy.update(dt, targetX, targetY, this.arenaWidth, this.arenaHeight);
+                if (result) {
+                    projectiles.push(result);
+                }
+            } else {
+                enemy.tickDying(dt);
             }
         }
-        
-        // Remove dead enemies
-        this.enemies = this.enemies.filter(e => e.isAlive());
+
+        this.enemies = this.enemies.filter((e) => !e.isReadyToRemove());
         
         return { projectiles };
     }
@@ -311,7 +324,7 @@ export class SpawningSystem {
 
     /** Drop enemies killed during combat resolution. */
     pruneDeadEnemies(): void {
-        this.enemies = this.enemies.filter((e) => e.isAlive());
+        this.enemies = this.enemies.filter((e) => !e.isReadyToRemove());
     }
 
     /** Spawn a single enemy off-screen (manual debug spawn). */

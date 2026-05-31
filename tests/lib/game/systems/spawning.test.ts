@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CANVAS, ENEMIES, WAVES } from '../../../../src/lib/game/config';
+import { CANVAS, WAVES } from '../../../../src/lib/game/config';
+import { ENEMY_STATS, getEnemySpawnExtent } from '../../../../src/lib/game/entities/enemies';
 import {
     createEnemy,
     isOutsideCanvasView,
@@ -13,23 +14,24 @@ const ENEMY_TYPES: EnemyType[] = ['grunt', 'shooter', 'chief'];
 describe('pickSpawnPosition', () => {
     it('always places the full enemy visual outside the canvas', () => {
         for (const type of ENEMY_TYPES) {
-            const size = ENEMIES[type].size;
+            const stats = ENEMY_STATS[type];
+            const extent = getEnemySpawnExtent(type);
 
             for (let i = 0; i < 100; i++) {
                 const { x, y } = pickSpawnPosition(
                     CANVAS.width,
                     CANVAS.height,
                     WAVES.spawnMargin,
-                    size,
+                    extent,
                 );
 
-                expect(isOutsideCanvasView(x, y, size)).toBe(true);
+                expect(isOutsideCanvasView(x, y, stats.hitbox.x, stats.hitbox.y)).toBe(true);
             }
         }
     });
 
     it('varies spawn locations across the outside margin', () => {
-        const size = ENEMIES.grunt.size;
+        const extent = getEnemySpawnExtent('grunt');
         const positions = new Set<string>();
 
         for (let i = 0; i < 80; i++) {
@@ -37,7 +39,7 @@ describe('pickSpawnPosition', () => {
                 CANVAS.width,
                 CANVAS.height,
                 WAVES.spawnMargin,
-                size,
+                extent,
             );
             positions.add(`${Math.round(x / 20)},${Math.round(y / 20)}`);
         }
@@ -51,7 +53,7 @@ describe('spawnEnemy', () => {
         for (const type of ENEMY_TYPES) {
             const enemy = spawnEnemy(type);
 
-            expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.size)).toBe(true);
+            expect(isOutsideCanvasView(enemy.x, enemy.y, enemy.hitbox.x, enemy.hitbox.y)).toBe(true);
             expect(enemy.type).toBe(type);
         }
     });

@@ -1,26 +1,37 @@
 import type { Character } from '../entities/characters/Character.js';
 import type { Enemy } from '../entities/enemies/Enemy.js';
+import type { EnemySpriteType } from '../entities/enemies/index.js';
 import {
     drawCharacterAttackRange,
     drawCharacterHitbox,
-    drawCharacterShadow,
     drawCharacterSprite,
     type CharacterSpriteSet,
     type DrawCharacterVisualOptions,
     type FacingDirection,
 } from './characterSprites.js';
+import { drawEntityVisual } from './entitySprites.js';
+import type { EnemySpriteLibrary } from './enemySprites.js';
 import { sortByDepth } from './depthSort.js';
+import { drawHitboxOutline } from './hitboxRender.js';
+import {
+    ENEMY_HP_BAR_GAP,
+    ENEMY_HP_BAR_HEIGHT,
+} from '../systems/arenaBounds.js';
 
-export function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
-    ctx.fillStyle = enemy.color;
-    ctx.fillRect(enemy.x - enemy.size / 2, enemy.y - enemy.size / 2, enemy.size, enemy.size);
+export function drawEnemy(
+    ctx: CanvasRenderingContext2D,
+    enemy: Enemy,
+    sprites: EnemySpriteLibrary | null = null,
+) {
+    drawEntityVisual(ctx, enemy, enemy.facing, sprites);
 
     const hpRatio = enemy.hp / enemy.maxHp;
     const barW = enemy.size;
+    const barY = enemy.y + enemy.size / 2 + ENEMY_HP_BAR_GAP;
     ctx.fillStyle = '#ccc';
-    ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.size / 2 - 8, barW, 4);
+    ctx.fillRect(enemy.x - barW / 2, barY, barW, ENEMY_HP_BAR_HEIGHT);
     ctx.fillStyle = hpRatio > 0.5 ? '#4ade8f' : hpRatio > 0.25 ? '#f59e0b' : '#ef4444';
-    ctx.fillRect(enemy.x - barW / 2, enemy.y - enemy.size / 2 - 8, barW * hpRatio, 4);
+    ctx.fillRect(enemy.x - barW / 2, barY, barW * hpRatio, ENEMY_HP_BAR_HEIGHT);
 }
 
 type ArenaDrawable = {
@@ -30,12 +41,9 @@ type ArenaDrawable = {
 
 export interface DrawArenaOptions extends DrawCharacterVisualOptions {
     characterInvincible?: boolean;
+    enemySprites?: Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null;
 }
 
-/**
- * Draw character and enemies sorted by y so lower-on-screen entities appear in front.
- * Range/hitbox overlays are drawn outside the depth-sorted pass.
- */
 export function drawArenaEntities(
     ctx: CanvasRenderingContext2D,
     character: Character | null,
@@ -44,7 +52,12 @@ export function drawArenaEntities(
     enemies: readonly Enemy[],
     options: DrawArenaOptions = {},
 ) {
-    const { showRange = false, showHitbox = true, characterInvincible = false } = options;
+    const {
+        showRange = false,
+        showHitbox = true,
+        characterInvincible = false,
+        enemySprites = null,
+    } = options;
 
     if (character && showRange) {
         drawCharacterAttackRange(ctx, character);
@@ -57,24 +70,30 @@ export function drawArenaEntities(
             y: character.y,
             draw: (drawCtx) => {
                 if (characterInvincible) drawCtx.globalAlpha = 0.5;
-                drawCharacterShadow(drawCtx, character);
-                if (sprites?.ready) {
-                    drawCharacterSprite(drawCtx, character, facing, sprites);
-                }
+                drawCharacterSprite(drawCtx, character, facing, sprites);
                 if (characterInvincible) drawCtx.globalAlpha = 1;
             },
         });
     }
 
     for (const enemy of enemies) {
+        const library = enemySprites?.[enemy.type as EnemySpriteType] ?? null;
         drawables.push({
             y: enemy.y,
-            draw: (drawCtx) => drawEnemy(drawCtx, enemy),
+            draw: (drawCtx) => drawEnemy(drawCtx, enemy, library),
         });
     }
 
     for (const drawable of sortByDepth(drawables)) {
         drawable.draw(ctx);
+    }
+
+    if (showHitbox) {
+        for (const enemy of enemies) {
+            if (enemy.isAlive()) {
+                drawHitboxOutline(ctx, enemy);
+            }
+        }
     }
 
     if (character && showHitbox) {
