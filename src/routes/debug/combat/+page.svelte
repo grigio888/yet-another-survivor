@@ -21,10 +21,12 @@
     import type { CombatStats } from '$lib/game/systems/combat';
     import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import { drawDebugHud } from '$lib/game/rendering/debugHud';
 
     const spawning = new SpawningSystem();
 
     let canvas: HTMLCanvasElement | null = $state(null);
+    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
     let projectileSprites = $state<ProjectileSpriteSet | null>(null);
@@ -268,7 +270,26 @@
 
         syncWaveHud();
         draw(enemies);
+        drawGui(enemies);
         frameId = requestAnimationFrame(loop);
+    }
+
+    function drawGui(enemies: Enemy[]) {
+        drawDebugHud(guiCanvas, {
+            width: W,
+            height: H,
+            lines: [
+                `time: ${timeAlive.toFixed(1)}s`,
+                `wave: ${stats.wave}`,
+                `enemies: ${enemies.length}`,
+                `player projectiles: ${playerProjectiles.length}`,
+                `enemy projectiles: ${enemyProjectiles.length}`,
+                ...(character ? [`player lives: ${character.lives}`] : []),
+                `score: ${stats.score}`,
+                `kills: ${stats.kills}`,
+                `combo: ${stats.combo}`,
+            ],
+        });
     }
 
     function draw(enemies: Enemy[]) {
@@ -301,18 +322,6 @@
             ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
             ctx.fill();
         }
-
-        ctx.fillStyle = '#000';
-        ctx.font = '12px monospace';
-        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 15);
-        ctx.fillText(`wave: ${stats.wave}`, 5, 30);
-        ctx.fillText(`enemies: ${enemies.length}`, 5, 45);
-        ctx.fillText(`player projectiles: ${playerProjectiles.length}`, 5, 60);
-        ctx.fillText(`enemy projectiles: ${enemyProjectiles.length}`, 5, 75);
-        if (character) ctx.fillText(`player lives: ${character.lives}`, 5, 90);
-        ctx.fillText(`score: ${stats.score}`, 5, 105);
-        ctx.fillText(`kills: ${stats.kills}`, 5, 120);
-        ctx.fillText(`combo: ${stats.combo}`, 5, 135);
     }
 
     $effect(() => {
@@ -416,7 +425,7 @@
             <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas />
+    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
     <div class="flex flex-col justify-between gap-2 p-4 w-96 border-l border-(--border-color)">
         <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Manual Spawn</h3>

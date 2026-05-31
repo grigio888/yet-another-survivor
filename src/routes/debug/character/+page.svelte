@@ -14,8 +14,10 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import { drawDebugHud } from '$lib/game/rendering/debugHud';
 
     let canvas: HTMLCanvasElement | null = $state(null);
+    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
     let frameId = $state(0);
@@ -122,7 +124,30 @@
         }
 
         draw();
+        drawGui();
         frameId = requestAnimationFrame(loop);
+    }
+
+    function drawGui() {
+        if (!character) return;
+
+        drawDebugHud(guiCanvas, {
+            width: W,
+            height: H,
+            font: '12px Poppins, sans-serif',
+            lines: [
+                `type: ${character.type}`,
+                `pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`,
+                `hp: ${character.hp} / ${character.maxHp}`,
+                `lives: ${character.lives}`,
+                `invincible: ${invincible}`,
+                `active: ${character.inventory.getActiveCount()}/4`,
+                `passive: ${character.inventory.getPassiveCount()}/4`,
+                `speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`,
+                `time: ${timeAlive.toFixed(1)}s`,
+                `facing: ${facingLabel()}`,
+            ],
+        });
     }
 
     function drawGround(ctx: CanvasRenderingContext2D) {
@@ -171,20 +196,8 @@
         drawCharacterVisual(ctx, character, facing, sprites, { showRange: true });
         ctx.globalAlpha = 1;
 
-        ctx.fillStyle = '#000';
-        ctx.font = '12px Poppins, sans-serif';
-        ctx.fillText(`type: ${character.type}`, 5, 15);
-        ctx.fillText(`pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`, 5, 30);
-        ctx.fillText(`hp: ${character.hp} / ${character.maxHp}`, 5, 45);
-        ctx.fillText(`lives: ${character.lives}`, 5, 60);
-        ctx.fillText(`invincible: ${invincible}`, 5, 75);
-        ctx.fillText(`active: ${character.inventory.getActiveCount()}/4`, 5, 90);
-        ctx.fillText(`passive: ${character.inventory.getPassiveCount()}/4`, 5, 105);
-        ctx.fillText(`speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`, 5, 120);
-        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 135);
-        ctx.fillText(`facing: ${facingLabel()}`, 5, 150);
-
         if (invincible) {
+            ctx.fillStyle = '#000';
             ctx.font = '14px monospace';
             ctx.fillText('INVULNERABLE', character.x + 20, character.y);
         }
@@ -242,7 +255,7 @@
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={() => resetCharacter()}>Reset</button>
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas />
+    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
     <div
         class="flex flex-col justify-between gap-2 w-64 border-l border-(--border-color)"
     >

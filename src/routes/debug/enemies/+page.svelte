@@ -5,8 +5,10 @@
     import type { Projectile } from '$lib/game/systems/collision';
     import { spawnEnemy, type EnemyType } from '$lib/game/systems/spawning';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import { drawDebugHud } from '$lib/game/rendering/debugHud';
 
     let canvas: HTMLCanvasElement | null = $state(null);
+    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let enemies = $state<Enemy[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
     let frameId = $state(0);
@@ -128,7 +130,23 @@
         enemyProjectiles = enemyProjectiles.filter((p) => !offscreen(p));
 
         draw();
+        drawGui();
         frameId = requestAnimationFrame(loop);
+    }
+
+    function drawGui() {
+        drawDebugHud(guiCanvas, {
+            width: W,
+            height: H,
+            lines: [
+                `time: ${timeAlive.toFixed(1)}s`,
+                `enemies: ${enemies.length}`,
+                `grunts: ${countByType('grunt')}`,
+                `shooters: ${countByType('shooter')}`,
+                `chiefs: ${countByType('chief')}`,
+                `projectiles: ${enemyProjectiles.length}`,
+            ],
+        });
     }
 
     function draw() {
@@ -179,16 +197,6 @@
             ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
             ctx.fill();
         }
-
-        // Debug overlay
-        ctx.fillStyle = '#000';
-        ctx.font = '12px monospace';
-        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 15);
-        ctx.fillText(`enemies: ${enemies.length}`, 5, 30);
-        ctx.fillText(`grunts: ${countByType('grunt')}`, 5, 45);
-        ctx.fillText(`shooters: ${countByType('shooter')}`, 5, 60);
-        ctx.fillText(`chiefs: ${countByType('chief')}`, 5, 75);
-        ctx.fillText(`projectiles: ${enemyProjectiles.length}`, 5, 90);
     }
 
     $effect(() => {
@@ -252,5 +260,5 @@
                 <p class="text-sm text-gray-500">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
             </div>
     </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas onGameClick={onCanvasClick} />
+    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas onGameClick={onCanvasClick} />
 </div>
