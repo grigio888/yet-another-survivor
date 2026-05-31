@@ -1,6 +1,26 @@
 // Base class for all playable character types
 import { Entity } from '../Entity.js';
 
+export type SpriteFacing = 'ne' | 'nw' | 'se' | 'sw';
+
+export type CharacterSpriteUrls = Record<SpriteFacing, string>;
+
+export type CharacterSpriteLayout = {
+    /** Source pixels from PNG bottom to the feet (above embedded art shadow). */
+    feetFromBottom: number;
+    /** Draw height as a multiple of entity collision size. */
+    heightScale: number;
+    /** Extra scale multiplier on top of heightScale (1 = default size). */
+    zoom: number;
+    /** Feet sit this far above shadow center, as a fraction of shadow radius. */
+    liftFromShadowCenter: number;
+};
+
+export type CharacterSpriteConfig = {
+    layout: CharacterSpriteLayout;
+    idle: CharacterSpriteUrls;
+};
+
 export type CharacterStats = {
     type: string;
     maxLives: number;
@@ -13,6 +33,7 @@ export type CharacterStats = {
     invincibleFrames: number;
     projectileSpeed: number;
     projectileDamage: number;
+    sprite: CharacterSpriteConfig;
 };
 
 export class Character extends Entity {
@@ -47,6 +68,10 @@ export class Character extends Entity {
         this.lives = stats.maxLives;
         this.lastShot = 0;
         this.invincibleUntil = 0;
+    }
+
+    get sprite(): CharacterSpriteConfig {
+        return this.stats.sprite;
     }
 
     update(dt: number, movement: { dx: number; dy: number; sprint: boolean }) {

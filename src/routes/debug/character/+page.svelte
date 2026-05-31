@@ -1,5 +1,10 @@
 <script lang="ts">
-    import { Mage, CHARACTER_STATS, type Character, type CharacterId } from '$lib/game/entities/characters';
+    import {
+        createCharacter,
+        CHARACTER_STATS,
+        type Character,
+        type CharacterId,
+    } from '$lib/game/entities/characters';
     import { CANVAS } from '$lib/game/config';
     import {
         drawCharacterVisual,
@@ -25,14 +30,10 @@
     const W = CANVAS.width;
     const H = CANVAS.height;
 
-    const characterClasses = [
-        { label: 'Mage', cls: Mage, type: 'mage' as CharacterId },
+    const characterClasses: { label: string; type: CharacterId }[] = [
+        { label: 'Mage', type: 'mage' },
+        { label: 'Peasant', type: 'peasant' },
     ];
-
-    function createCharacter(type: CharacterId): Character {
-        if (type === 'mage') return new Mage(W / 2, H / 2);
-        return new Mage(W / 2, H / 2);
-    }
 
     function characterConfig(c: Character) {
         return CHARACTER_STATS[c.type as CharacterId];
@@ -97,14 +98,15 @@
         }
     }
 
-    function resetCharacter(type: CharacterId = character?.type ?? 'mage') {
-        character = createCharacter(type);
+    function resetCharacter(type: CharacterId = (character?.type as CharacterId) ?? 'mage') {
+        character = createCharacter(type, W / 2, H / 2);
         facing = { dx: 0, dy: 1 };
         timeAlive = 0;
     }
 
-    function switchCharacter(type: CharacterId) {
+    async function switchCharacter(type: CharacterId) {
         resetCharacter(type);
+        sprites = await loadCharacterSprites(type);
     }
 
     function loop(now: number) {
@@ -192,7 +194,7 @@
             canvas.width = W;
             canvas.height = H;
         }
-        character = createCharacter('mage');
+        character = createCharacter('mage', W / 2, H / 2);
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
@@ -236,7 +238,7 @@
         <div class="flex flex-col gap-2">
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={takeDamage}>Take Damage (-1 life)</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={healFull}>Full Heal</button>
-            <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={resetCharacter}>Reset</button>
+            <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={() => resetCharacter()}>Reset</button>
         </div>
     </div>
     <GameCanvasFrame width={W} height={H} bind:canvas />

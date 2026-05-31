@@ -1,12 +1,8 @@
 import type { Character } from '../entities/characters/Character.js';
-import type { CharacterId } from '../entities/characters/index.js';
+import { CHARACTER_STATS, type CharacterId } from '../entities/characters/index.js';
+import type { CharacterSpriteLayout, SpriteFacing } from '../entities/characters/Character.js';
 
-import mageIdleNe from '$lib/assets/mage/female/idle_ne.png';
-import mageIdleNw from '$lib/assets/mage/female/idle_nw.png';
-import mageIdleSe from '$lib/assets/mage/female/idle_se.png';
-import mageIdleSw from '$lib/assets/mage/female/idle_sw.png';
-
-export type SpriteFacing = 'ne' | 'nw' | 'se' | 'sw';
+export type { CharacterSpriteLayout, SpriteFacing } from '../entities/characters/Character.js';
 
 export interface FacingDirection {
     dx: number;
@@ -20,30 +16,6 @@ export interface CharacterSpriteSet {
     sw: HTMLImageElement;
     ready: boolean;
 }
-
-export interface CharacterSpriteLayout {
-    /** Source pixels from PNG bottom to the feet (above embedded art shadow). */
-    feetFromBottom: number;
-    /** Draw height as a multiple of entity collision size. */
-    heightScale: number;
-    /** Feet sit this far above shadow center, as a fraction of shadow radius. */
-    liftFromShadowCenter: number;
-}
-
-const MAGE_LAYOUT: CharacterSpriteLayout = {
-    feetFromBottom: 22,
-    heightScale: 4.2,
-    liftFromShadowCenter: 0.25,
-};
-
-const SPRITE_URLS: Record<CharacterId, Record<SpriteFacing, string>> = {
-    mage: {
-        ne: mageIdleNe,
-        nw: mageIdleNw,
-        se: mageIdleSe,
-        sw: mageIdleSw,
-    },
-};
 
 function loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -65,7 +37,7 @@ export function facingToSpriteKey(facing: FacingDirection): SpriteFacing {
 }
 
 export async function loadCharacterSprites(type: CharacterId): Promise<CharacterSpriteSet> {
-    const urls = SPRITE_URLS[type];
+    const urls = CHARACTER_STATS[type].sprite.idle;
     const [ne, nw, se, sw] = await Promise.all([
         loadImage(urls.ne),
         loadImage(urls.nw),
@@ -76,9 +48,8 @@ export async function loadCharacterSprites(type: CharacterId): Promise<Character
     return { ne, nw, se, sw, ready: true };
 }
 
-export function getCharacterSpriteLayout(type: CharacterId): CharacterSpriteLayout {
-    if (type === 'mage') return MAGE_LAYOUT;
-    return MAGE_LAYOUT;
+export function getCharacterSpriteLayout(character: Character): CharacterSpriteLayout {
+    return character.sprite.layout;
 }
 
 export function snapEightDirection(dx: number, dy: number): FacingDirection {
@@ -166,7 +137,7 @@ export function drawCharacterSprite(
     character: Character,
     facing: FacingDirection,
     sprites: CharacterSpriteSet,
-    layout: CharacterSpriteLayout = getCharacterSpriteLayout(character.type),
+    layout: CharacterSpriteLayout = getCharacterSpriteLayout(character),
 ) {
     if (!sprites.ready) return;
 
@@ -174,7 +145,7 @@ export function drawCharacterSprite(
     const img = sprites[key];
     const shadowRadius = character.size / 2;
 
-    const drawH = character.size * layout.heightScale;
+    const drawH = character.size * layout.heightScale * layout.zoom;
     const scale = drawH / img.height;
     const drawW = img.width * scale;
 

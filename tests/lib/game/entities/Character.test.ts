@@ -20,6 +20,7 @@
                 expect(character.color).toBe(MAGE_STATS.color);
                 expect(character.type).toBe('mage');
                 expect(character.range).toBe(MAGE_STATS.range);
+                expect(character.sprite).toEqual(MAGE_STATS.sprite);
             });
         });
 
