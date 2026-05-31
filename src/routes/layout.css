@@ -206,13 +206,31 @@ hr.vr {
 	background: var(--bg-color-900);
 }
 
-.game-canvas-frame canvas {
+.game-canvas-stack {
+	position: relative;
 	display: block;
 	width: min(var(--game-canvas-width, 800px), 100%);
-	height: auto;
-	aspect-ratio: var(--game-canvas-aspect, 800 / 600);
 	max-height: min(var(--game-canvas-height, 600px), calc(100vh - 12rem));
+	aspect-ratio: var(--game-canvas-aspect, 800 / 600);
+}
+
+.game-canvas-layer {
+	display: block;
+	width: 100%;
+	height: 100%;
 	image-rendering: pixelated;
+}
+
+.game-canvas-layer--game {
+	position: relative;
+	z-index: 0;
+}
+
+.game-canvas-layer--gui {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
 }
 
 .debug-stage {

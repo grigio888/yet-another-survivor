@@ -411,9 +411,7 @@
             <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H}>
-        <canvas bind:this={canvas}></canvas>
-    </GameCanvasFrame>
+    <GameCanvasFrame width={W} height={H} bind:canvas />
     <div class="flex flex-col justify-between gap-2 p-4 w-96 border-l border-(--border-color)">
         <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Manual Spawn</h3>

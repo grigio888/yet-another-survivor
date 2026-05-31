@@ -216,7 +216,7 @@
 
 <div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
     <div
-        class="flex flex-col justify-between gap-2 p-4 w-64 border-r border-(--border-color)"
+        class="flex flex-col justify-between gap-2 p-4 w-64 border-r border-(--border-color) h-full"
     >
         <div class="flex flex-col gap-2">
             <h3 class="text-lg font-bold mb-2">Character</h3>
@@ -232,16 +232,25 @@
             </div>
             <p class="text-sm text-gray-500">Active: {character?.type ?? '—'}</p>
         </div>
+        <hr class="h-px">
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Controls</h3>
-            <p class="text-sm text-gray-500">WASD/Arrows: Move</p>
-            <p class="text-sm text-gray-500">Shift: Sprint (2x speed)</p>
-            <p class="text-sm text-gray-500">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={takeDamage}>Take Damage (-1 life)</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={healFull}>Full Heal</button>
             <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={resetCharacter}>Reset</button>
         </div>
-        <div class="flex flex-col gap-2">
+    </div>
+    <GameCanvasFrame width={W} height={H} bind:canvas />
+    <div
+        class="flex flex-col justify-between gap-2 w-64 border-l border-(--border-color)"
+    >
+        <div class="flex flex-col gap-2 p-4">
+            <h3 class="text-lg font-bold mb-2">Controls</h3>
+            <p class="text-sm text-gray-500">WASD/Arrows: Move</p>
+            <p class="text-sm text-gray-500">Shift: Sprint (2x speed)</p>
+            <p class="text-sm text-gray-500">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
+        </div>
+        <hr class="h-px">
+        <div class="flex flex-col gap-2 p-4">
             <h3 class="text-lg font-bold mb-2">Stats</h3>
             {#if character}
                 {@const config = characterConfig(character)}
@@ -254,9 +263,6 @@
             {/if}
         </div>
     </div>
-    <GameCanvasFrame width={W} height={H}>
-        <canvas bind:this={canvas}></canvas>
-    </GameCanvasFrame>
 </div>
 
 

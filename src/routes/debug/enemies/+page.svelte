@@ -252,7 +252,5 @@
                 <p class="text-sm text-gray-500">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
             </div>
     </div>
-    <GameCanvasFrame width={W} height={H}>
-        <canvas bind:this={canvas} onclick={onCanvasClick}></canvas>
-    </GameCanvasFrame>
+    <GameCanvasFrame width={W} height={H} bind:canvas onGameClick={onCanvasClick} />
 </div>
