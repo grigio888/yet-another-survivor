@@ -103,9 +103,13 @@ export function createEnemy(type: EnemyType, x: number, y: number): Enemy {
 }
 
 /** Spawn an enemy fully outside the canvas viewport. */
-export function spawnEnemy(type: EnemyType): Enemy {
+export function spawnEnemy(
+    type: EnemyType,
+    width: number = CANVAS.width,
+    height: number = CANVAS.height,
+): Enemy {
     const size = ENEMIES[type].size;
-    const pos = pickSpawnPosition(CANVAS.width, CANVAS.height, WAVES.spawnMargin, size);
+    const pos = pickSpawnPosition(width, height, WAVES.spawnMargin, size);
     return createEnemy(type, pos.x, pos.y);
 }
 
@@ -133,6 +137,8 @@ export interface SpawnResult {
 export class SpawningSystem {
     private enemies: Enemy[] = [];
     private wave: number = 1;
+    private arenaWidth: number = CANVAS.width;
+    private arenaHeight: number = CANVAS.height;
     
     // Timing state
     private waveStartTime: number = 0;
@@ -142,6 +148,12 @@ export class SpawningSystem {
     
     // State flags
     private spawning: boolean = false;
+
+    /** Match spawn bounds to the live arena size. */
+    setArenaSize(width: number, height: number): void {
+        this.arenaWidth = width;
+        this.arenaHeight = height;
+    }
 
     /**
      * Initialize a new game session. Resets all state.
@@ -198,7 +210,12 @@ export class SpawningSystem {
             
             const type = selectEnemyType(this.wave);
             const size = ENEMIES[type].size;
-            const pos = pickSpawnPosition(CANVAS.width, CANVAS.height, WAVES.spawnMargin, size);
+            const pos = pickSpawnPosition(
+                this.arenaWidth,
+                this.arenaHeight,
+                WAVES.spawnMargin,
+                size,
+            );
             const enemy = createEnemy(type, pos.x, pos.y);
             
             this.enemies.push(enemy);
@@ -299,7 +316,7 @@ export class SpawningSystem {
 
     /** Spawn a single enemy off-screen (manual debug spawn). */
     spawnManualEnemy(type: EnemyType): Enemy {
-        const enemy = spawnEnemy(type);
+        const enemy = spawnEnemy(type, this.arenaWidth, this.arenaHeight);
         this.enemies.push(enemy);
         return enemy;
     }

@@ -21,13 +21,13 @@
     import type { CombatStats } from '$lib/game/systems/combat';
     import { SpawningSystem, type EnemyType } from '$lib/game/systems/spawning';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
-    import { drawDebugHud } from '$lib/game/rendering/debugHud';
+    import DebugHud from '$lib/components/DebugHud.svelte';
 
     const spawning = new SpawningSystem();
 
     let canvas: HTMLCanvasElement | null = $state(null);
-    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
     let projectileSprites = $state<ProjectileSpriteSet | null>(null);
@@ -54,10 +54,11 @@
     ];
 
     const COMBAT_TICK_DT = 1 / 60;
-
-    const W = CANVAS.width;
-    const H = CANVAS.height;
     const PROJECTILE_MARGIN = 50;
+
+    let arenaWidth = $state(CANVAS.width);
+    let arenaHeight = $state(CANVAS.height);
+    let hudLines = $state<string[]>([]);
 
     function createStats(): CombatStats {
         return {
@@ -168,7 +169,7 @@
     }
 
     function startWaves() {
-        spawning.startGame({ x: W / 2, y: H / 2 });
+        spawning.startGame({ x: arenaWidth / 2, y: arenaHeight / 2 });
         wavesActive = true;
         syncWaveHud();
     }
@@ -183,8 +184,8 @@
         playerProjectiles = [];
         enemyProjectiles = [];
         if (character) {
-            character.x = W / 2;
-            character.y = H / 2;
+            character.x = arenaWidth / 2;
+            character.y = arenaHeight / 2;
             character.hp = character.maxHp;
             character.lives = CHARACTER_STATS[character.type as keyof typeof CHARACTER_STATS].maxLives;
             character.invincibleUntil = 0;
@@ -210,9 +211,9 @@
     function offscreen(p: Projectile): boolean {
         return (
             p.x < -PROJECTILE_MARGIN ||
-            p.x > W + PROJECTILE_MARGIN ||
+            p.x > arenaWidth + PROJECTILE_MARGIN ||
             p.y < -PROJECTILE_MARGIN ||
-            p.y > H + PROJECTILE_MARGIN
+            p.y > arenaHeight + PROJECTILE_MARGIN
         );
     }
 
@@ -236,8 +237,8 @@
         const enemies = spawning.getEnemyList();
 
         const canShoot = character.update(dt, movement);
-        character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
-        character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
+        character.x = Math.max(character.size / 2, Math.min(arenaWidth - character.size / 2, character.x));
+        character.y = Math.max(character.size / 2, Math.min(arenaHeight - character.size / 2, character.y));
         invincible = character.isInvincible();
 
         if (canShoot) {
@@ -271,26 +272,22 @@
 
         syncWaveHud();
         draw(enemies);
-        drawGui(enemies);
+        syncHud(enemies);
         frameId = requestAnimationFrame(loop);
     }
 
-    function drawGui(enemies: Enemy[]) {
-        drawDebugHud(guiCanvas, {
-            width: W,
-            height: H,
-            lines: [
-                `time: ${timeAlive.toFixed(1)}s`,
-                `wave: ${stats.wave}`,
-                `enemies: ${enemies.length}`,
-                `player projectiles: ${playerProjectiles.length}`,
-                `enemy projectiles: ${enemyProjectiles.length}`,
-                ...(character ? [`player lives: ${character.lives}`] : []),
-                `score: ${stats.score}`,
-                `kills: ${stats.kills}`,
-                `combo: ${stats.combo}`,
-            ],
-        });
+    function syncHud(enemies: Enemy[]) {
+        hudLines = [
+            `time: ${timeAlive.toFixed(1)}s`,
+            `wave: ${stats.wave}`,
+            `enemies: ${enemies.length}`,
+            `player projectiles: ${playerProjectiles.length}`,
+            `enemy projectiles: ${enemyProjectiles.length}`,
+            ...(character ? [`player lives: ${character.lives}`] : []),
+            `score: ${stats.score}`,
+            `kills: ${stats.kills}`,
+            `combo: ${stats.combo}`,
+        ];
     }
 
     function draw(enemies: Enemy[]) {
@@ -298,15 +295,15 @@
         if (!ctx) return;
 
         ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(0, 0, arenaWidth, arenaHeight);
 
         ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         ctx.lineWidth = 1;
-        for (let gx = 0; gx < W; gx += 50) {
-            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+        for (let gx = 0; gx < arenaWidth; gx += 50) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, arenaHeight); ctx.stroke();
         }
-        for (let gy = 0; gy < H; gy += 50) {
-            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+        for (let gy = 0; gy < arenaHeight; gy += 50) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(arenaWidth, gy); ctx.stroke();
         }
 
         drawArenaEntities(ctx, character, facing, sprites, enemies, {
@@ -326,12 +323,17 @@
     }
 
     $effect(() => {
-        if (canvas) {
-            canvas.width = W;
-            canvas.height = H;
+        if (arenaWidth > 0 && arenaHeight > 0) {
+            spawning.setArenaSize(arenaWidth, arenaHeight);
         }
+    });
 
-        character = new Mage(W / 2, H / 2);
+    $effect(() => {
+        if (arenaWidth <= 0 || arenaHeight <= 0 || character) return;
+        character = new Mage(arenaWidth / 2, arenaHeight / 2);
+    });
+
+    $effect(() => {
         lastTime = performance.now();
         startWaves();
         frameId = requestAnimationFrame(loop);
@@ -355,17 +357,29 @@
     });
 </script>
 
-<h1 class="text-6xl my-4 text-center">Combat Debug</h1>
+<DebugPlayground>
+    {#snippet children()}
+        <div class="relative h-full w-full">
+            <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
+            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10" />
+            {#if character}
+                <CharacterItemLoadout
+                    inventory={character.inventory}
+                    class="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
+                    showLabels={false}
+                />
+            {/if}
+        </div>
+    {/snippet}
 
-<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
-    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color) h-full">
+    {#snippet left()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Waves</h3>
-            <p class="text-sm text-gray-500">
+            <h3 class="text-lg font-bold">Waves</h3>
+            <p class="text-sm text-(--text-color-muted)">
                 Automatic spawning via <code class="text-xs">SpawningSystem</code> — types, timing,
                 and positions follow wave config.
             </p>
-            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
                 <span>Status</span>
                 <span class="text-right text-(--text-color)">{wavesActive ? 'Running' : 'Stopped'}</span>
                 <span>Wave</span><span class="text-right text-(--text-color)">{stats.wave}</span>
@@ -374,103 +388,83 @@
             </div>
             <div class="flex flex-wrap gap-2">
                 <button
-                    class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
+                    class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700) disabled:opacity-50"
                     onclick={startWaves}
                     disabled={wavesActive}
                 >
                     Start Waves
                 </button>
                 <button
-                    class="bg-(--background-color) border border-(--border-color) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200"
+                    class="rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600) disabled:opacity-50"
                     onclick={stopWaves}
                     disabled={!wavesActive}
                 >
                     Stop Waves
                 </button>
                 <button
-                    class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
+                    class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
                     onclick={resetAll}
                 >
                     Reset All
                 </button>
             </div>
         </div>
-        <hr class="h-px">
+        <hr class="h-px border-(--border-color)/40" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Combat</h3>
+            <h3 class="text-lg font-bold">Combat</h3>
             <button
-                class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200"
+                class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
                 onclick={triggerCombat}
             >
                 Resolve Combat
             </button>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-(--text-color-muted)">
                 Runs <code class="text-xs">processCombat</code> once on the current arena state
                 (projectiles, enemies, player) with no scripted setup.
             </p>
             {#if combatLog.length > 0}
-                <ul class="text-xs text-gray-500 space-y-1 font-mono bg-(--background-color) border border-(--border-color) rounded-md p-2">
+                <ul class="space-y-1 rounded-md border border-(--border-color) bg-(--background-color) p-2 font-mono text-xs text-(--text-color-muted)">
                     {#each combatLog as line}
                         <li>{line}</li>
                     {/each}
                 </ul>
             {/if}
         </div>
-        <hr class="h-px">
-        <h3 class="text-lg font-bold mb-2">Wave Config</h3>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+        <hr class="h-px border-(--border-color)/40" />
+        <h3 class="text-lg font-bold">Wave Config</h3>
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
             <span>Initial enemies</span><span class="text-right text-(--text-color)">{WAVES.initialEnemies}</span>
             <span>+ per wave</span><span class="text-right text-(--text-color)">{WAVES.increasePerWave}</span>
             <span>Spawn interval</span><span class="text-right text-(--text-color)">{WAVES.spawnInterval}ms</span>
             <span>Wave duration</span><span class="text-right text-(--text-color)">{WAVES.waveInterval}ms</span>
             <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
         </div>
-    </div>
-    <div class="relative flex min-w-0 flex-1 items-center justify-center">
-        <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
-        {#if character}
-            <CharacterItemLoadout
-                inventory={character.inventory}
-                class="absolute top-3 left-3 z-10 pointer-events-none"
-                showLabels={false}
-            />
-        {/if}
-    </div>
-    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-l border-(--border-color)">
+    {/snippet}
+
+    {#snippet right()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Manual Spawn</h3>
-            <p class="text-sm text-gray-500">
+            <h3 class="text-lg font-bold">Manual Spawn</h3>
+            <p class="text-sm text-(--text-color-muted)">
                 Spawn enemies off-screen via <code class="text-xs">spawnEnemy</code> — same rules as waves.
             </p>
             {#each enemyTypes as ec}
                 <button
-                    class="bg-(--background-color) border border-(--border-color) text-white
-                    px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200
-                    cursor-pointer"
+                    class="cursor-pointer rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600)"
                     onclick={() => addEnemy(ec.type)}
                 >
                     {ec.label}
                 </button>
             {/each}
         </div>
-        <hr class="h-px">
+        <hr class="h-px border-(--border-color)/40" />
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Controls</h3>
-            <p class="text-sm text-gray-500">WASD / Arrows: Move</p>
-            <p class="text-sm text-gray-500">Shift: Sprint</p>
-            <p class="text-sm text-gray-500">Auto-fire at nearest enemy in range</p>
+            <h3 class="text-lg font-bold">Controls</h3>
+            <p class="text-sm text-(--text-color-muted)">WASD / Arrows: Move</p>
+            <p class="text-sm text-(--text-color-muted)">Shift: Sprint</p>
+            <p class="text-sm text-(--text-color-muted)">Auto-fire at nearest enemy in range</p>
         </div>
-        <hr class="h-px">
-        <h3 class="text-lg font-bold mb-2">Wave Config</h3>
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
-            <span>Initial enemies</span><span class="text-right text-(--text-color)">{WAVES.initialEnemies}</span>
-            <span>+ per wave</span><span class="text-right text-(--text-color)">{WAVES.increasePerWave}</span>
-            <span>Spawn interval</span><span class="text-right text-(--text-color)">{WAVES.spawnInterval}ms</span>
-            <span>Wave duration</span><span class="text-right text-(--text-color)">{WAVES.waveInterval}ms</span>
-            <span>Spawn margin</span><span class="text-right text-(--text-color)">{WAVES.spawnMargin}px</span>
-        </div>
-        <hr class="h-px">
-        <h3 class="text-lg font-bold mb-2">Enemy Stats</h3>
+        <hr class="h-px border-(--border-color)/40" />
+        <h3 class="text-lg font-bold">Enemy Stats</h3>
         <table class="w-full text-sm">
             <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th></tr></thead>
             <tbody>
@@ -479,13 +473,13 @@
                 <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td></tr>
             </tbody>
         </table>
-        <hr class="h-px">
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-500">
+        <hr class="h-px border-(--border-color)/40" />
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-(--text-color-muted)">
             <span>Score</span><span class="text-right text-(--text-color)">{stats.score}</span>
             <span>Kills</span><span class="text-right text-(--text-color)">{stats.kills}</span>
             <span>Combo</span><span class="text-right text-(--text-color)">{stats.combo}</span>
             <span>Lives</span><span class="text-right text-(--text-color)">{character?.lives ?? 0}</span>
             <span>Time</span><span class="text-right text-(--text-color)">{timeAlive.toFixed(1)}s</span>
         </div>
-    </div>
-</div>
+    {/snippet}
+</DebugPlayground>

@@ -14,11 +14,11 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
+    import DebugPlayground from '$lib/components/DebugPlayground.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
-    import { drawDebugHud } from '$lib/game/rendering/debugHud';
+    import DebugHud from '$lib/components/DebugHud.svelte';
 
     let canvas: HTMLCanvasElement | null = $state(null);
-    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
     let frameId = $state(0);
@@ -27,11 +27,10 @@
     let movement = $state({ dx: 0, dy: 0, sprint: false });
     let invincible = $state(false);
     let timeAlive = $state(0);
-    // Last snapped 8-way facing; persists while idle
     let facing = $state<FacingDirection>({ dx: 0, dy: 1 });
-
-    const W = CANVAS.width;
-    const H = CANVAS.height;
+    let arenaWidth = $state(CANVAS.width);
+    let arenaHeight = $state(CANVAS.height);
+    let hudLines = $state<string[]>([]);
 
     const characterClasses: { label: string; type: CharacterId }[] = [
         { label: 'Mage', type: 'mage' },
@@ -102,7 +101,7 @@
     }
 
     function resetCharacter(type: CharacterId = (character?.type as CharacterId) ?? 'mage') {
-        character = createCharacter(type, W / 2, H / 2);
+        character = createCharacter(type, arenaWidth / 2, arenaHeight / 2);
         facing = { dx: 0, dy: 1 };
         timeAlive = 0;
     }
@@ -118,50 +117,54 @@
 
         if (character) {
             character.update(dt, movement);
-            character.x = Math.max(character.size / 2, Math.min(W - character.size / 2, character.x));
-            character.y = Math.max(character.size / 2, Math.min(H - character.size / 2, character.y));
+            character.x = Math.max(
+                character.size / 2,
+                Math.min(arenaWidth - character.size / 2, character.x),
+            );
+            character.y = Math.max(
+                character.size / 2,
+                Math.min(arenaHeight - character.size / 2, character.y),
+            );
             timeAlive += dt;
             invincible = character.isInvincible();
         }
 
         draw();
-        drawGui();
+        syncHud();
         frameId = requestAnimationFrame(loop);
     }
 
-    function drawGui() {
-        if (!character) return;
+    function syncHud() {
+        if (!character) {
+            hudLines = [];
+            return;
+        }
 
-        drawDebugHud(guiCanvas, {
-            width: W,
-            height: H,
-            font: '12px Poppins, sans-serif',
-            lines: [
-                `type: ${character.type}`,
-                `pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`,
-                `hp: ${character.hp} / ${character.maxHp}`,
-                `lives: ${character.lives}`,
-                `invincible: ${invincible}`,
-                `active: ${character.inventory.getActiveCount()}/4`,
-                `passive: ${character.inventory.getPassiveCount()}/4`,
-                `speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`,
-                `time: ${timeAlive.toFixed(1)}s`,
-                `facing: ${facingLabel()}`,
-            ],
-        });
+        hudLines = [
+            `type: ${character.type}`,
+            `pos: (${character.x.toFixed(1)}, ${character.y.toFixed(1)})`,
+            `hp: ${character.hp} / ${character.maxHp}`,
+            `lives: ${character.lives}`,
+            `invincible: ${invincible}`,
+            `active: ${character.inventory.getActiveCount()}/4`,
+            `passive: ${character.inventory.getPassiveCount()}/4`,
+            `speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`,
+            `time: ${timeAlive.toFixed(1)}s`,
+            `facing: ${facingLabel()}`,
+        ];
     }
 
     function drawGround(ctx: CanvasRenderingContext2D) {
         const tile = 48;
 
-        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        const grad = ctx.createLinearGradient(0, 0, 0, arenaHeight);
         grad.addColorStop(0, '#f1f5f9');
         grad.addColorStop(1, '#e2e8f0');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(0, 0, arenaWidth, arenaHeight);
 
-        for (let ty = 0; ty < H + tile; ty += tile) {
-            for (let tx = 0; tx < W + tile; tx += tile) {
+        for (let ty = 0; ty < arenaHeight + tile; ty += tile) {
+            for (let tx = 0; tx < arenaWidth + tile; tx += tile) {
                 const even = ((tx / tile) + (ty / tile)) % 2 === 0;
                 ctx.fillStyle = even ? 'rgba(255, 255, 255, 0.35)' : 'rgba(148, 163, 184, 0.08)';
                 ctx.fillRect(tx, ty, tile, tile);
@@ -170,16 +173,16 @@
 
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
         ctx.lineWidth = 1;
-        for (let gx = 0; gx <= W; gx += tile) {
+        for (let gx = 0; gx <= arenaWidth; gx += tile) {
             ctx.beginPath();
             ctx.moveTo(gx, 0);
-            ctx.lineTo(gx, H);
+            ctx.lineTo(gx, arenaHeight);
             ctx.stroke();
         }
-        for (let gy = 0; gy <= H; gy += tile) {
+        for (let gy = 0; gy <= arenaHeight; gy += tile) {
             ctx.beginPath();
             ctx.moveTo(0, gy);
-            ctx.lineTo(W, gy);
+            ctx.lineTo(arenaWidth, gy);
             ctx.stroke();
         }
     }
@@ -205,90 +208,84 @@
     }
 
     $effect(() => {
-        if (canvas) {
-            canvas.width = W;
-            canvas.height = H;
-        }
-        character = createCharacter('mage', W / 2, H / 2);
+        if (arenaWidth <= 0 || arenaHeight <= 0 || character) return;
+        character = createCharacter('mage', arenaWidth / 2, arenaHeight / 2);
+        loadCharacterSprites('mage').then((loaded) => {
+            sprites = loaded;
+        });
+    });
+
+    $effect(() => {
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
         window.addEventListener('keyup', onKeyup);
 
-        loadCharacterSprites('mage').then((loaded) => {
-            sprites = loaded;
-        });
-
         return () => {
             if (frameId) cancelAnimationFrame(frameId);
             window.removeEventListener('keydown', onKeydown);
             window.removeEventListener('keyup', onKeyup);
-        }
+        };
     });
 </script>
 
-<h1 class="text-6xl my-4 text-center">
-    Character Debug
-</h1>
+<DebugPlayground>
+    {#snippet children()}
+        <div class="relative h-full w-full">
+            <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas />
+            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10 font-[family-name:var(--default-font)]" />
+            {#if character}
+                <CharacterItemLoadout
+                    inventory={character.inventory}
+                    class="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
+                    showLabels={false}
+                />
+            {/if}
+        </div>
+    {/snippet}
 
-<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
-    <div
-        class="flex flex-col justify-between gap-2 p-4 w-64 border-r border-(--border-color) h-full"
-    >
+    {#snippet left()}
         <div class="flex flex-col gap-2">
-            <h3 class="text-lg font-bold mb-2">Character</h3>
+            <h3 class="text-lg font-bold">Character</h3>
             <div class="flex flex-wrap gap-2">
                 {#each characterClasses as cc}
                     <button
-                        class="px-3 py-1 rounded-md text-sm transition-colors duration-200 {character?.type === cc.type ? 'bg-(--theme-color-600) text-white' : 'bg-gray-200 hover:bg-gray-300'}"
+                        class="rounded-md px-3 py-1 text-sm transition-colors duration-200 {character?.type === cc.type ? 'bg-(--theme-color-600) text-white' : 'bg-gray-200 hover:bg-gray-300'}"
                         onclick={() => switchCharacter(cc.type)}
                     >
                         {cc.label}
                     </button>
                 {/each}
             </div>
-            <p class="text-sm text-gray-500">Active: {character?.type ?? '—'}</p>
+            <p class="text-sm text-(--text-color-muted)">Active: {character?.type ?? '—'}</p>
         </div>
-        <hr class="h-px">
+        <hr class="h-px border-(--border-color)/40" />
         <div class="flex flex-col gap-2">
-            <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={takeDamage}>Take Damage (-1 life)</button>
-            <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={healFull}>Full Heal</button>
-            <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md hover:bg-(--theme-color-700) transition-colors duration-200" onclick={() => resetCharacter()}>Reset</button>
+            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={takeDamage}>Take Damage (-1 life)</button>
+            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={healFull}>Full Heal</button>
+            <button class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)" onclick={() => resetCharacter()}>Reset</button>
         </div>
-    </div>
-    <div class="relative flex min-w-0 flex-1 items-center justify-center">
-        <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas />
-        {#if character}
-            <CharacterItemLoadout
-                inventory={character.inventory}
-                class="absolute top-3 left-3 z-10 pointer-events-none"
-                showLabels={false}
-            />
-        {/if}
-    </div>
-    <div
-        class="flex flex-col justify-between gap-2 w-64 border-l border-(--border-color)"
-    >
-        <div class="flex flex-col gap-2 p-4">
-            <h3 class="text-lg font-bold mb-2">Controls</h3>
-            <p class="text-sm text-gray-500">WASD/Arrows: Move</p>
-            <p class="text-sm text-gray-500">Shift: Sprint (2x speed)</p>
-            <p class="text-sm text-gray-500">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
+    {/snippet}
+
+    {#snippet right()}
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold">Controls</h3>
+            <p class="text-sm text-(--text-color-muted)">WASD/Arrows: Move</p>
+            <p class="text-sm text-(--text-color-muted)">Shift: Sprint (2x speed)</p>
+            <p class="text-sm text-(--text-color-muted)">Render: shadow + sprite (dashed ring = hitbox, blue = range)</p>
         </div>
-        <hr class="h-px">
-        <div class="flex flex-col gap-2 p-4">
-            <h3 class="text-lg font-bold mb-2">Stats</h3>
+        <hr class="h-px border-(--border-color)/40" />
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold">Stats</h3>
             {#if character}
                 {@const config = characterConfig(character)}
-                <p class="text-sm text-gray-500">Type: {character.type}</p>
-                <p class="text-sm text-gray-500">Max Lives: {config.maxLives}</p>
-                <p class="text-sm text-gray-500">Speed: {config.speed} px/s</p>
-                <p class="text-sm text-gray-500">Max range: {character.attackStats.range}px</p>
-                <p class="text-sm text-gray-500">Damage: {character.attackStats.projectileDamage}</p>
-                <p class="text-sm text-gray-500">Invuln: {config.invincibleFrames}ms</p>
+                <p class="text-sm text-(--text-color-muted)">Type: {character.type}</p>
+                <p class="text-sm text-(--text-color-muted)">Max Lives: {config.maxLives}</p>
+                <p class="text-sm text-(--text-color-muted)">Speed: {config.speed} px/s</p>
+                <p class="text-sm text-(--text-color-muted)">Max range: {character.attackStats.range}px</p>
+                <p class="text-sm text-(--text-color-muted)">Damage: {character.attackStats.projectileDamage}</p>
+                <p class="text-sm text-(--text-color-muted)">Invuln: {config.invincibleFrames}ms</p>
             {/if}
         </div>
-    </div>
-</div>
-
-
+    {/snippet}
+</DebugPlayground>

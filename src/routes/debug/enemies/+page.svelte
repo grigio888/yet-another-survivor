@@ -5,10 +5,10 @@
     import type { Projectile } from '$lib/game/systems/collision';
     import { spawnEnemy, type EnemyType } from '$lib/game/systems/spawning';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
-    import { drawDebugHud } from '$lib/game/rendering/debugHud';
+    import DebugPlayground from '$lib/components/DebugPlayground.svelte';
+    import DebugHud from '$lib/components/DebugHud.svelte';
 
     let canvas: HTMLCanvasElement | null = $state(null);
-    let guiCanvas: HTMLCanvasElement | null = $state(null);
     let enemies = $state<Enemy[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
     let frameId = $state(0);
@@ -18,6 +18,9 @@
     let timeAlive = $state(0);
     // A movable point the enemies chase / aim at (stands in for the player)
     let target = $state({ x: CANVAS.width / 2, y: CANVAS.height / 2 });
+    let arenaWidth = $state(CANVAS.width);
+    let arenaHeight = $state(CANVAS.height);
+    let hudLines = $state<string[]>([]);
 
     const enemyClasses = [
         { label: 'Grunt', cls: Grunt },
@@ -25,8 +28,6 @@
         { label: 'Chief', cls: Chief },
     ];
 
-    const W = CANVAS.width;
-    const H = CANVAS.height;
     // Speed the target marker moves under WASD, in pixels per second
     const TARGET_SPEED = 200;
     // Damage applied when clicking an enemy
@@ -61,14 +62,14 @@
 
     function addEnemy(type: string) {
         if (type === 'grunt' || type === 'shooter' || type === 'chief') {
-            enemies.push(spawnEnemy(type as EnemyType));
+            enemies.push(spawnEnemy(type as EnemyType, arenaWidth, arenaHeight));
         }
     }
 
     function resetAll() {
         enemies = [];
         enemyProjectiles = [];
-        target = { x: W / 2, y: H / 2 };
+        target = { x: arenaWidth / 2, y: arenaHeight / 2 };
         timeAlive = 0;
     }
 
@@ -80,8 +81,10 @@
     function onCanvasClick(e: MouseEvent) {
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX - rect.left) * (W / rect.width);
-        const y = (e.clientY - rect.top) * (H / rect.height);
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
 
         for (let i = enemies.length - 1; i >= 0; i--) {
             const en = enemies[i];
@@ -97,9 +100,9 @@
     function offscreen(p: Projectile): boolean {
         return (
             p.x < -PROJECTILE_MARGIN ||
-            p.x > W + PROJECTILE_MARGIN ||
+            p.x > arenaWidth + PROJECTILE_MARGIN ||
             p.y < -PROJECTILE_MARGIN ||
-            p.y > H + PROJECTILE_MARGIN
+            p.y > arenaHeight + PROJECTILE_MARGIN
         );
     }
 
@@ -110,8 +113,8 @@
 
         // Move the target marker with WASD (Shift = faster)
         const speed = movement.sprint ? TARGET_SPEED * 2 : TARGET_SPEED;
-        target.x = Math.max(0, Math.min(W, target.x + movement.dx * speed * dt));
-        target.y = Math.max(0, Math.min(H, target.y + movement.dy * speed * dt));
+        target.x = Math.max(0, Math.min(arenaWidth, target.x + movement.dx * speed * dt));
+        target.y = Math.max(0, Math.min(arenaHeight, target.y + movement.dy * speed * dt));
 
         // Update enemy AI; shooters return a projectile aimed at the target
         for (const e of enemies) {
@@ -130,23 +133,19 @@
         enemyProjectiles = enemyProjectiles.filter((p) => !offscreen(p));
 
         draw();
-        drawGui();
+        syncHud();
         frameId = requestAnimationFrame(loop);
     }
 
-    function drawGui() {
-        drawDebugHud(guiCanvas, {
-            width: W,
-            height: H,
-            lines: [
-                `time: ${timeAlive.toFixed(1)}s`,
-                `enemies: ${enemies.length}`,
-                `grunts: ${countByType('grunt')}`,
-                `shooters: ${countByType('shooter')}`,
-                `chiefs: ${countByType('chief')}`,
-                `projectiles: ${enemyProjectiles.length}`,
-            ],
-        });
+    function syncHud() {
+        hudLines = [
+            `time: ${timeAlive.toFixed(1)}s`,
+            `enemies: ${enemies.length}`,
+            `grunts: ${countByType('grunt')}`,
+            `shooters: ${countByType('shooter')}`,
+            `chiefs: ${countByType('chief')}`,
+            `projectiles: ${enemyProjectiles.length}`,
+        ];
     }
 
     function draw() {
@@ -154,15 +153,15 @@
         if (!ctx) return;
 
         ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(0, 0, arenaWidth, arenaHeight);
 
         ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         ctx.lineWidth = 1;
-        for (let gx = 0; gx < W; gx += 50) {
-            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+        for (let gx = 0; gx < arenaWidth; gx += 50) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, arenaHeight); ctx.stroke();
         }
-        for (let gy = 0; gy < H; gy += 50) {
-            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+        for (let gy = 0; gy < arenaHeight; gy += 50) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(arenaWidth, gy); ctx.stroke();
         }
 
         // Draw the target marker enemies are reacting to
@@ -200,11 +199,6 @@
     }
 
     $effect(() => {
-        if (canvas) {
-            canvas.width = W;
-            canvas.height = H;
-        }
-
         lastTime = performance.now();
         frameId = requestAnimationFrame(loop);
         window.addEventListener('keydown', onKeydown);
@@ -214,51 +208,52 @@
             if (frameId) cancelAnimationFrame(frameId);
             window.removeEventListener('keydown', onKeydown);
             window.removeEventListener('keyup', onKeyup);
-        }
+        };
     });
 </script>
 
-<h1 class="text-6xl my-4 text-center">Enemies Debug</h1>
+<DebugPlayground>
+    {#snippet children()}
+        <div class="relative h-full w-full">
+            <GameCanvasFrame fill bind:width={arenaWidth} bind:height={arenaHeight} bind:canvas onGameClick={onCanvasClick} />
+            <DebugHud lines={hudLines} class="absolute top-3 right-3 z-10" />
+        </div>
+    {/snippet}
 
-<div class="debug-stage rounded-md overflow-hidden border border-(--border-color)">
-    <div class="flex flex-col justify-between gap-2 p-4 w-96 border-r border-(--border-color)"
-        >
-            <div class="flex flex-col gap-2">
-                <h3 class="text-lg font-bold mb-2">Spawn Enemies</h3>
-                {#each enemyClasses as ec}
-                    <button
-                        class="bg-(--background-color) border border-(--border-color) text-white
-                        px-4 py-2 rounded-md hover:bg-(--theme-color-600) transition-colors duration-200
-                        cursor-pointer"
-                        onclick={() => addEnemy(ec.label.toLowerCase())}
-                    >
-                        {ec.label}
-                    </button>
-                {/each}
-                <button class="bg-(--theme-color-600) text-white px-4 py-2 rounded-md
-                    hover:bg-(--theme-color-700) transition-colors duration-200"
-                    onclick={resetAll}
+    {#snippet left()}
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold">Spawn Enemies</h3>
+            {#each enemyClasses as ec}
+                <button
+                    class="cursor-pointer rounded-md border border-(--border-color) bg-(--background-color) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-600)"
+                    onclick={() => addEnemy(ec.label.toLowerCase())}
                 >
-                    Reset All
+                    {ec.label}
                 </button>
-            </div>
-            <hr class="h-px">
-            <h3 class="text-lg font-bold mb-2">Enemy Stats</h3>
-            <table class="w-full text-sm">
-                <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th><th>Color</th></tr></thead>
-                <tbody>
-                    <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td><td style="color: {ENEMIES.grunt.color}">Grunt</td></tr>
-                    <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td><td style="color: {ENEMIES.shooter.color}">Shooter</td></tr>
-                    <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td><td style="color: {ENEMIES.chief.color}">Chief</td></tr>
-                </tbody>
-            </table>
-            <hr class="h-px">
-            <div class="flex flex-col gap-2">
-                <h3 class="text-lg font-bold mb-2">Controls</h3>
-                <p class="text-sm text-gray-500">WASD/Arrows: Move the target marker</p>
-                <p class="text-sm text-gray-500">Shift: Move target faster</p>
-                <p class="text-sm text-gray-500">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
-            </div>
-    </div>
-    <GameCanvasFrame width={W} height={H} bind:canvas bind:guiCanvas onGameClick={onCanvasClick} />
-</div>
+            {/each}
+            <button
+                class="rounded-md bg-(--theme-color-600) px-4 py-2 text-white transition-colors duration-200 hover:bg-(--theme-color-700)"
+                onclick={resetAll}
+            >
+                Reset All
+            </button>
+        </div>
+        <hr class="h-px border-(--border-color)/40" />
+        <h3 class="text-lg font-bold">Enemy Stats</h3>
+        <table class="w-full text-sm">
+            <thead><tr><th>Type</th><th>HP</th><th>Speed</th><th>Dmg</th><th>Range</th><th>Color</th></tr></thead>
+            <tbody>
+                <tr><td>Grunt</td><td>{ENEMIES.grunt.hp}</td><td>{ENEMIES.grunt.speed}</td><td>{ENEMIES.grunt.damage}</td><td>Melee</td><td style="color: {ENEMIES.grunt.color}">Grunt</td></tr>
+                <tr><td>Shooter</td><td>{ENEMIES.shooter.hp}</td><td>{ENEMIES.shooter.speed}</td><td>{ENEMIES.shooter.damage}</td><td>{ENEMIES.shooter.range}px</td><td style="color: {ENEMIES.shooter.color}">Shooter</td></tr>
+                <tr><td>Chief</td><td>{ENEMIES.chief.hp}</td><td>{ENEMIES.chief.speed}</td><td>{ENEMIES.chief.damage}</td><td>Melee</td><td style="color: {ENEMIES.chief.color}">Chief</td></tr>
+            </tbody>
+        </table>
+        <hr class="h-px border-(--border-color)/40" />
+        <div class="flex flex-col gap-2">
+            <h3 class="text-lg font-bold">Controls</h3>
+            <p class="text-sm text-(--text-color-muted)">WASD/Arrows: Move the target marker</p>
+            <p class="text-sm text-(--text-color-muted)">Shift: Move target faster</p>
+            <p class="text-sm text-(--text-color-muted)">Click an enemy to damage it ({CLICK_DAMAGE} dmg)</p>
+        </div>
+    {/snippet}
+</DebugPlayground>

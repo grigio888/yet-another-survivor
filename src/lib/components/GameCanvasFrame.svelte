@@ -2,51 +2,82 @@
     import { CANVAS } from '$lib/game/config';
 
     interface Props {
+        /** Expand to fill the parent; native resolution tracks container size */
+        fill?: boolean;
         width?: number;
         height?: number;
-        /** Gameplay layer — world, entities, projectiles */
         canvas?: HTMLCanvasElement | null;
-        /** Overlay layer — HUD, menus (optional; stacked on top when bound) */
-        guiCanvas?: HTMLCanvasElement | null;
         onGameClick?: (event: MouseEvent) => void;
     }
 
     let {
-        width = CANVAS.width,
-        height = CANVAS.height,
+        fill = false,
+        width = $bindable(CANVAS.width),
+        height = $bindable(CANVAS.height),
         canvas = $bindable<HTMLCanvasElement | null>(null),
-        guiCanvas = $bindable<HTMLCanvasElement | null>(null),
         onGameClick,
     }: Props = $props();
 
-    $effect(() => {
+    let frameEl = $state<HTMLDivElement | null>(null);
+
+    function syncCanvasResolution(w: number, h: number) {
+        if (w <= 0 || h <= 0) return;
+        if (w === width && h === height && canvas?.width === w && canvas?.height === h) {
+            return;
+        }
+
+        width = w;
+        height = h;
+
         if (canvas) {
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = w;
+            canvas.height = h;
         }
-        if (guiCanvas) {
-            guiCanvas.width = width;
-            guiCanvas.height = height;
+    }
+
+    $effect(() => {
+        if (fill) {
+            if (!frameEl) return;
+
+            const measure = () => {
+                syncCanvasResolution(
+                    Math.floor(frameEl!.clientWidth),
+                    Math.floor(frameEl!.clientHeight),
+                );
+            };
+
+            measure();
+            const observer = new ResizeObserver(measure);
+            observer.observe(frameEl);
+
+            return () => observer.disconnect();
         }
+
+        syncCanvasResolution(width, height);
     });
 </script>
 
-<div
-    class="game-canvas-frame"
-    style:--game-canvas-width="{width}px"
-    style:--game-canvas-height="{height}px"
-    style:--game-canvas-aspect="{width} / {height}"
->
-    <div class="game-canvas-stack">
+{#if fill}
+    <div bind:this={frameEl} class="relative h-full w-full bg-(--bg-color-900)">
         <canvas
-            class="game-canvas-layer game-canvas-layer--game"
+            class="absolute inset-0 block h-full w-full [image-rendering:pixelated]"
             bind:this={canvas}
             onclick={onGameClick}
         ></canvas>
-        <canvas
-            class="game-canvas-layer game-canvas-layer--gui"
-            bind:this={guiCanvas}
-            aria-hidden="true"
-        ></canvas>
     </div>
-</div>
+{:else}
+    <div
+        class="game-canvas-frame"
+        style:--game-canvas-width="{width}px"
+        style:--game-canvas-height="{height}px"
+        style:--game-canvas-aspect="{width} / {height}"
+    >
+        <div class="game-canvas-stack" style:aspect-ratio="{width} / {height}">
+            <canvas
+                class="game-canvas-layer game-canvas-layer--game"
+                bind:this={canvas}
+                onclick={onGameClick}
+            ></canvas>
+        </div>
+    </div>
+{/if}
