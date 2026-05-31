@@ -9,6 +9,12 @@
         type FacingDirection,
     } from '$lib/game/rendering/characterSprites';
     import { drawArenaEntities } from '$lib/game/rendering/arenaRender';
+    import {
+        drawProjectiles,
+        loadProjectileSprites,
+        type ProjectileSpriteSet,
+    } from '$lib/game/rendering/projectileSprites';
+    import { getProjectileSpriteUrls } from '$lib/game/items';
     import { separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
@@ -21,6 +27,7 @@
     let canvas: HTMLCanvasElement | null = $state(null);
     let character: Character | null = $state(null);
     let sprites = $state<CharacterSpriteSet | null>(null);
+    let projectileSprites = $state<ProjectileSpriteSet | null>(null);
     let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
     let frameId = $state(0);
@@ -178,7 +185,6 @@
             character.hp = character.maxHp;
             character.lives = CHARACTER_STATS[character.type as keyof typeof CHARACTER_STATS].maxLives;
             character.invincibleUntil = 0;
-            character.lastShot = 0;
         }
         stats = createStats();
         timeAlive = 0;
@@ -237,8 +243,8 @@
                 if (movement.dx === 0 && movement.dy === 0) {
                     updateFacingTowardTarget(target);
                 }
-                const proj = character.shoot(target);
-                if (proj) playerProjectiles.push(proj);
+                const projs = character.shoot(target);
+                if (projs.length > 0) playerProjectiles.push(...projs);
             }
         }
 
@@ -287,12 +293,7 @@
             characterInvincible: invincible,
         });
 
-        ctx.fillStyle = '#2563eb';
-        for (const p of playerProjectiles) {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-            ctx.fill();
-        }
+        drawProjectiles(ctx, playerProjectiles, projectileSprites);
 
         ctx.fillStyle = '#f97316';
         for (const p of enemyProjectiles) {
@@ -329,6 +330,10 @@
 
         loadCharacterSprites('mage').then((loaded) => {
             sprites = loaded;
+        });
+
+        loadProjectileSprites(getProjectileSpriteUrls()).then((loaded) => {
+            projectileSprites = loaded;
         });
 
         return () => {

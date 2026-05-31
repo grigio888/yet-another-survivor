@@ -13,11 +13,8 @@ export const PEASANT_STATS = {
     size: 22,
     color: '#ca8a04',
     speed: 180,
-    shootCooldown: 550,
-    range: 90,
     invincibleFrames: 1000,
-    projectileSpeed: 55,
-    projectileDamage: 18,
+    startingItems: ['fireball'],
     sprite: {
         layout: {
             feetFromBottom: 22,

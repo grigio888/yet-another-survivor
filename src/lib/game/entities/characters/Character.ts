@@ -1,18 +1,21 @@
 // Base class for all playable character types
 import { Entity } from '../Entity.js';
+import {
+    DEFAULT_STARTING_ITEMS,
+    ItemInventory,
+    type ItemId,
+} from '../../items/index.js';
+import type { AttackStats, CharacterBaseStats } from '../../items/types.js';
+import type { Projectile } from '../../systems/collision.js';
 
 export type SpriteFacing = 'ne' | 'nw' | 'se' | 'sw';
 
 export type CharacterSpriteUrls = Record<SpriteFacing, string>;
 
 export type CharacterSpriteLayout = {
-    /** Source pixels from PNG bottom to the feet (above embedded art shadow). */
     feetFromBottom: number;
-    /** Draw height as a multiple of entity collision size. */
     heightScale: number;
-    /** Extra scale multiplier on top of heightScale (1 = default size). */
     zoom: number;
-    /** Feet sit this far above shadow center, as a fraction of shadow radius. */
     liftFromShadowCenter: number;
 };
 
@@ -28,20 +31,17 @@ export type CharacterStats = {
     size: number;
     color: string;
     speed: number;
-    shootCooldown: number;
-    range: number;
     invincibleFrames: number;
-    projectileSpeed: number;
-    projectileDamage: number;
     sprite: CharacterSpriteConfig;
+    startingItems?: readonly ItemId[];
 };
 
 export class Character extends Entity {
     public type: string;
     public range: number;
     public lives: number;
-    public lastShot: number;
     public invincibleUntil: number;
+    public readonly inventory: ItemInventory;
     protected stats: CharacterStats;
 
     constructor(options: {
@@ -50,6 +50,9 @@ export class Character extends Entity {
         stats: CharacterStats;
     }) {
         const { stats } = options;
+        const inventory = new ItemInventory();
+        inventory.equipAll(stats.startingItems ?? DEFAULT_STARTING_ITEMS);
+        const baseStats = Character.baseStatsFrom(stats);
 
         super({
             x: options.x ?? 0,
@@ -58,20 +61,36 @@ export class Character extends Entity {
             hp: stats.maxHp,
             maxHp: stats.maxHp,
             speed: stats.speed,
-            damage: stats.projectileDamage,
+            damage: inventory.getMaxDamage(baseStats),
             color: stats.color,
         });
 
         this.type = stats.type;
         this.stats = stats;
-        this.range = stats.range;
+        this.inventory = inventory;
+        this.range = inventory.getMaxRange(baseStats);
         this.lives = stats.maxLives;
-        this.lastShot = 0;
         this.invincibleUntil = 0;
+    }
+
+    static baseStatsFrom(stats: CharacterStats): CharacterBaseStats {
+        return {
+            speed: stats.speed,
+            maxLives: stats.maxLives,
+            maxHp: stats.maxHp,
+        };
     }
 
     get sprite(): CharacterSpriteConfig {
         return this.stats.sprite;
+    }
+
+    get baseStats(): CharacterBaseStats {
+        return Character.baseStatsFrom(this.stats);
+    }
+
+    get attackStats(): AttackStats {
+        return this.inventory.getAttackStats(this.baseStats);
     }
 
     update(dt: number, movement: { dx: number; dy: number; sprint: boolean }) {
@@ -88,8 +107,11 @@ export class Character extends Entity {
 
         this.hp = this.lives > 0 ? this.maxHp : 0;
 
-        this.lastShot += dt * 1000;
-        return this.lastShot >= this.stats.shootCooldown;
+        this.inventory.tick(dt);
+        this.range = this.inventory.getMaxRange(this.baseStats);
+        this.damage = this.inventory.getMaxDamage(this.baseStats);
+
+        return this.inventory.canFireAny(this.baseStats);
     }
 
     isInRange(target: { x: number; y: number }) {
@@ -117,27 +139,8 @@ export class Character extends Entity {
         return best;
     }
 
-    shoot(target: { x: number; y: number }) {
-        const dx = target.x - this.x;
-        const dy = target.y - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > 0 && dist <= this.range) {
-            const nx = dx / dist;
-            const ny = dy / dist;
-
-            this.lastShot = 0;
-
-            return {
-                x: this.x,
-                y: this.y,
-                direction: { dx: nx, dy: ny },
-                speed: this.stats.projectileSpeed,
-                damage: this.stats.projectileDamage,
-            };
-        }
-
-        return null;
+    shoot(target: { x: number; y: number }): Projectile[] {
+        return this.inventory.fireAll(this.baseStats, { x: this.x, y: this.y }, target);
     }
 
     takeDamage(amount: number) {

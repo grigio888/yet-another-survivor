@@ -13,11 +13,8 @@ export const MAGE_STATS = {
     size: 20,
     color: '#60a5fa',
     speed: 160,
-    shootCooldown: 400,
-    range: 150,
     invincibleFrames: 1000,
-    projectileSpeed: 75,
-    projectileDamage: 25,
+    startingItems: ['fireball'],
     sprite: {
         layout: {
             feetFromBottom: 22,

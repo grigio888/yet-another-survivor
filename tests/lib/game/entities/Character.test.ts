@@ -1,5 +1,6 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
     import { Mage, MAGE_STATS } from '$lib/game/entities/characters';
+    import { FIREBALL_ITEM } from '$lib/game/items';
 
     describe('Mage', () => {
         let character: Mage;
@@ -11,7 +12,6 @@
         describe('constructor', () => {
             it('has config-derived default values', () => {
                 expect(character.lives).toBe(3);
-                expect(character.lastShot).toBe(0);
                 expect(character.invincibleUntil).toBe(0);
 
                 expect(character.hp).toBe(MAGE_STATS.maxHp);
@@ -19,8 +19,9 @@
                 expect(character.speed).toBe(MAGE_STATS.speed);
                 expect(character.color).toBe(MAGE_STATS.color);
                 expect(character.type).toBe('mage');
-                expect(character.range).toBe(MAGE_STATS.range);
+                expect(character.range).toBe(FIREBALL_ITEM.active!.range);
                 expect(character.sprite).toEqual(MAGE_STATS.sprite);
+                expect(character.inventory.getActiveItemIds()).toEqual(['fireball']);
             });
         });
 
@@ -47,15 +48,16 @@
             });
 
             it('identifies when cooldown expired and shot allowed', () => {
-                character.lastShot = MAGE_STATS.shootCooldown + 1;
+                character.update(0, { dx: 0, dy: 0, sprint: false });
+                character.inventory.tick(1);
 
-                expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(true);
+                expect(character.update(0, { dx: 0, dy: 0, sprint: false })).toBe(true);
             });
 
-            it('returns false from update when shoot cooldown has not elapsed', () => {
-                character.lastShot = 0;
+            it('returns false from update when no active item cooldown has elapsed', () => {
+                character.shoot({ x: 480, y: 300 });
 
-                expect(character.update(dt, { dx: 0, dy: 0, sprint: false })).toBe(false);
+                expect(character.update(0.01, { dx: 0, dy: 0, sprint: false })).toBe(false);
             });
 
             it('grants invulnerability after hit', () => {
@@ -75,42 +77,44 @@
         describe('shoot', () => {
             it('aims at target position', () => {
                 const target = { x: 480, y: 300 };
-                const projectile = character.shoot(target);
+                const projectile = character.shoot(target)[0];
 
                 expect(projectile).not.toBeNull();
                 if (projectile) {
                     expect(projectile.x).toBe(character.x);
                     expect(projectile.direction.dx).toBeGreaterThan(0);
                     expect(projectile.direction.dy).toBeCloseTo(0);
-                    expect(projectile.speed).toBe(MAGE_STATS.projectileSpeed);
-                    expect(projectile.damage).toBe(MAGE_STATS.projectileDamage);
+                    expect(projectile.speed).toBe(FIREBALL_ITEM.active!.speed);
+                    expect(projectile.damage).toBe(FIREBALL_ITEM.active!.damage);
+                    expect(projectile.type).toBe('fireball');
+                    expect(projectile.sprite).toBeTruthy();
                 }
             });
 
             it('returns null when target is at same position', () => {
-                expect(character.shoot({ x: character.x, y: character.y })).toBeNull();
+                expect(character.shoot({ x: character.x, y: character.y })).toHaveLength(0);
             });
 
             it('returns null when target is out of range', () => {
                 const outOfRange = {
-                    x: character.x + MAGE_STATS.range + 50,
+                    x: character.x + FIREBALL_ITEM.active!.range + 50,
                     y: character.y,
                 };
 
-                expect(character.shoot(outOfRange)).toBeNull();
+                expect(character.shoot(outOfRange)).toHaveLength(0);
             });
         });
 
         describe('findNearestInRange', () => {
             it('returns the closest target within range', () => {
                 const near = { x: character.x + 100, y: character.y };
-                const far = { x: character.x + MAGE_STATS.range + 100, y: character.y };
+                const far = { x: character.x + FIREBALL_ITEM.active!.range + 100, y: character.y };
 
                 expect(character.findNearestInRange([far, near])).toBe(near);
             });
 
             it('returns null when no targets are in range', () => {
-                const far = { x: character.x + MAGE_STATS.range + 1, y: character.y };
+                const far = { x: character.x + FIREBALL_ITEM.active!.range + 1, y: character.y };
 
                 expect(character.findNearestInRange([far])).toBeNull();
             });
@@ -123,7 +127,7 @@
 
             it('returns false for targets beyond range', () => {
                 expect(
-                    character.isInRange({ x: character.x + MAGE_STATS.range + 1, y: character.y })
+                    character.isInRange({ x: character.x + FIREBALL_ITEM.active!.range + 1, y: character.y })
                 ).toBe(false);
             });
         });

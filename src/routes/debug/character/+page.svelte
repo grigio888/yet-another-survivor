@@ -178,10 +178,11 @@
         ctx.fillText(`hp: ${character.hp} / ${character.maxHp}`, 5, 45);
         ctx.fillText(`lives: ${character.lives}`, 5, 60);
         ctx.fillText(`invincible: ${invincible}`, 5, 75);
-        ctx.fillText(`lastShot: ${character.lastShot.toFixed(0)}ms`, 5, 90);
-        ctx.fillText(`speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`, 5, 105);
-        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 120);
-        ctx.fillText(`facing: ${facingLabel()}`, 5, 135);
+        ctx.fillText(`active: ${character.inventory.getActiveCount()}/4`, 5, 90);
+        ctx.fillText(`passive: ${character.inventory.getPassiveCount()}/4`, 5, 105);
+        ctx.fillText(`speed: ${movement.sprint ? characterConfig(character).speed * 2 : characterConfig(character).speed}`, 5, 120);
+        ctx.fillText(`time: ${timeAlive.toFixed(1)}s`, 5, 135);
+        ctx.fillText(`facing: ${facingLabel()}`, 5, 150);
 
         if (invincible) {
             ctx.font = '14px monospace';
@@ -259,8 +260,16 @@
                 <p class="text-sm text-gray-500">Type: {character.type}</p>
                 <p class="text-sm text-gray-500">Max Lives: {config.maxLives}</p>
                 <p class="text-sm text-gray-500">Speed: {config.speed} px/s</p>
-                <p class="text-sm text-gray-500">Shoot cooldown: {config.shootCooldown}ms</p>
-                <p class="text-sm text-gray-500">Range: {config.range}px</p>
+                <p class="text-sm text-gray-500">
+                    Active ({character.inventory.getActiveCount()}/4):
+                    {character.inventory.getActiveItems().map((item) => item.name).join(', ') || '—'}
+                </p>
+                <p class="text-sm text-gray-500">
+                    Passive ({character.inventory.getPassiveCount()}/4):
+                    {character.inventory.getPassiveItems().map((item) => item.name).join(', ') || '—'}
+                </p>
+                <p class="text-sm text-gray-500">Max range: {character.attackStats.range}px</p>
+                <p class="text-sm text-gray-500">Damage: {character.attackStats.projectileDamage}</p>
                 <p class="text-sm text-gray-500">Invuln: {config.invincibleFrames}ms</p>
             {/if}
         </div>

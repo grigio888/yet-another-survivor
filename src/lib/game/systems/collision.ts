@@ -11,6 +11,9 @@ export interface Projectile {
     speed: number;
     damage: number;
     type?: string;
+    sprite?: string;
+    spriteSize?: number;
+    color?: string;
 }
 
 // squared Euclidean distance between two points
