@@ -5,6 +5,7 @@ export {
     type FireProjectileContext,
     type ItemDefinition,
     type ItemKind,
+    type ItemSprite,
     type ModifiableStat,
     type PassivePerk,
     type ProjectileActivePerk,

@@ -52,8 +52,8 @@ function attackStatsFromItem(
         projectileSpeed: active.speed,
         projectileColor: active.projectileColor,
         projectileType: active.projectileType,
-        sprite: active.sprite,
-        spriteSize: active.spriteSize,
+        sprite: item.sprite?.url,
+        spriteSize: item.sprite?.size,
     };
 
     const resolved = applyPassives(

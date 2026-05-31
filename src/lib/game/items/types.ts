@@ -29,11 +29,14 @@ export type ProjectileActivePerk = {
     cooldownMs: number;
     projectileColor?: string;
     projectileType?: string;
-    sprite?: string;
-    spriteSize?: number;
 };
 
 export type ActivePerk = ProjectileActivePerk;
+
+export type ItemSprite = {
+    url: string;
+    size: number;
+};
 
 export type ItemDefinition = {
     id: string;
@@ -42,6 +45,7 @@ export type ItemDefinition = {
     kind: ItemKind;
     passives: PassivePerk[];
     active: ActivePerk | null;
+    sprite?: ItemSprite | null;
 };
 
 export type AttackStats = {

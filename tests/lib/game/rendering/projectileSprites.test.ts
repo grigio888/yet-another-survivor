@@ -11,8 +11,8 @@ describe('FIREBALL_ITEM', () => {
     });
 
     it('uses the fireball sprite', () => {
-        expect(FIREBALL_ITEM.active?.sprite).toContain('fireball');
-        expect(FIREBALL_ITEM.active?.spriteSize).toBe(32);
+        expect(FIREBALL_ITEM.sprite?.url).toContain('fireball');
+        expect(FIREBALL_ITEM.sprite?.size).toBe(20);
     });
 });
 

@@ -8,7 +8,8 @@ describe('FIREBALL_ITEM', () => {
         expect(FIREBALL_ITEM.kind).toBe('active');
         expect(FIREBALL_ITEM.active?.kind).toBe('projectile');
         expect(FIREBALL_ITEM.active?.projectileType).toBe('fireball');
-        expect(FIREBALL_ITEM.active?.sprite).toBeTruthy();
+        expect(FIREBALL_ITEM.sprite?.url).toBeTruthy();
+        expect(FIREBALL_ITEM.sprite?.size).toBe(20);
     });
 });
 

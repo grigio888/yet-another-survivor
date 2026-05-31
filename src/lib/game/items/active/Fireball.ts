@@ -8,6 +8,10 @@ export const FIREBALL_ITEM = {
     description: 'Launches a blazing bolt at the nearest foe.',
     kind: 'active',
     passives: [],
+    sprite: {
+        url: fireballSprite,
+        size: 20,
+    },
     active: {
         kind: 'projectile',
         damage: 25,
@@ -16,7 +20,5 @@ export const FIREBALL_ITEM = {
         cooldownMs: 400,
         projectileColor: '#f97316',
         projectileType: 'fireball',
-        sprite: fireballSprite,
-        spriteSize: 20,
     },
 } as const satisfies ItemDefinition;

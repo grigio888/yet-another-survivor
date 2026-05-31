@@ -13,6 +13,6 @@ export const DEFAULT_STARTING_ITEMS = ['fireball'] as const satisfies readonly I
 
 export function getProjectileSpriteUrls(): string[] {
     return Object.values(ITEMS)
-        .map((item) => item.active?.sprite)
+        .map((item) => item.sprite?.url)
         .filter((url): url is string => Boolean(url));
 }
