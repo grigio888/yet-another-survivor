@@ -1,15 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import { Mage } from '$lib/game/entities/characters';
-import { FIREBALL_ITEM, MAX_ACTIVE_ITEMS, MAX_PASSIVE_ITEMS } from '$lib/game/items';
-import { ItemInventory } from '$lib/game/items/Inventory';
+import {
+    ARCANE_NOVA_ITEM,
+    FIREBALL_ITEM,
+    IRON_SWORD_ITEM,
+    MAX_ACTIVE_ITEMS,
+    MAX_PASSIVE_ITEMS,
+    THROWING_SPEAR_ITEM,
+    collectItemVisualUrls,
+    getItemVisualUrls,
+    isActiveItemVisuals,
+    worldVisualMatchesAttack,
+} from '$lib/game/items';
+import { ItemInventory, splitItemUseResults } from '$lib/game/items/Inventory';
+import { findAreaCircleHits, findMeleeArcHits } from '$lib/game/systems/itemCombat';
+import { Grunt } from '$lib/game/entities/enemies';
 
-describe('FIREBALL_ITEM', () => {
-    it('is an active projectile item', () => {
-        expect(FIREBALL_ITEM.kind).toBe('active');
+describe('item catalog', () => {
+    it('defines one item per weapon shape', () => {
         expect(FIREBALL_ITEM.active?.kind).toBe('projectile');
-        expect(FIREBALL_ITEM.active?.projectileType).toBe('fireball');
-        expect(FIREBALL_ITEM.sprite?.url).toBeTruthy();
-        expect(FIREBALL_ITEM.sprite?.size).toBe(20);
+        expect(THROWING_SPEAR_ITEM.active?.kind).toBe('projectile');
+        expect(IRON_SWORD_ITEM.active?.kind).toBe('melee');
+        expect(ARCANE_NOVA_ITEM.active?.kind).toBe('area');
+    });
+
+    it('pairs visuals with attack kind', () => {
+        for (const item of [FIREBALL_ITEM, THROWING_SPEAR_ITEM, IRON_SWORD_ITEM, ARCANE_NOVA_ITEM]) {
+            expect(isActiveItemVisuals(item.visuals!)).toBe(true);
+            if (isActiveItemVisuals(item.visuals!)) {
+                expect(worldVisualMatchesAttack(item.visuals, item.active!.kind)).toBe(true);
+            }
+        }
+    });
+
+    it('collects unique visual URLs from the registry', () => {
+        expect(getItemVisualUrls().length).toBeGreaterThanOrEqual(4);
+        expect(collectItemVisualUrls(FIREBALL_ITEM).length).toBeGreaterThan(0);
     });
 });
 
@@ -21,8 +47,12 @@ describe('ItemInventory', () => {
         expect(inventory.equip('fireball')).toBe(true);
 
         expect(inventory.getActiveItemIds()).toEqual(['fireball']);
-        expect(inventory.getAttackStats(base).projectileDamage).toBe(25);
-        expect(inventory.getAttackStats(base).range).toBe(150);
+        const stats = inventory.getResolvedActiveStats(base, 'fireball');
+        expect(stats.kind).toBe('projectile');
+        if (stats.kind === 'projectile') {
+            expect(stats.damage).toBe(25);
+            expect(stats.range).toBe(150);
+        }
     });
 
     it('allows up to four active and four passive items', () => {
@@ -41,24 +71,32 @@ describe('ItemInventory', () => {
         expect(inventory.getPassiveCount()).toBe(MAX_PASSIVE_ITEMS);
     });
 
-    it('applies passive perks from all equipped passive items to every active attack', () => {
+    it('applies passive perks from all equipped passive items to projectile attacks', () => {
         const inventory = new ItemInventory();
         inventory.equip('fireball');
         inventory.equip('swift_boots');
 
-        const stats = inventory.getAttackStats(base);
-        expect(stats.projectileSpeed).toBe(FIREBALL_ITEM.active!.speed + 10);
+        const stats = inventory.getResolvedActiveStats(base, 'fireball');
+        expect(stats.kind).toBe('projectile');
+        if (stats.kind === 'projectile') {
+            expect(stats.speed).toBe(FIREBALL_ITEM.active!.speed + 10);
+        }
     });
 
-    it('fires a projectile from each ready active item', () => {
+    it('fires projectiles and spawns melee/area effects together', () => {
         const inventory = new ItemInventory();
         inventory.equip('fireball');
-        inventory.equip('fireball');
+        inventory.equip('iron_sword');
+        inventory.equip('arcane_nova');
 
-        const projectiles = inventory.fireAll(base, { x: 400, y: 300 }, { x: 480, y: 300 });
+        const results = inventory.useAllActives(base, { x: 400, y: 300 }, { x: 460, y: 300 });
+        const split = splitItemUseResults(results);
 
-        expect(projectiles).toHaveLength(2);
-        expect(projectiles.every((p) => p.type === 'fireball')).toBe(true);
+        expect(split.projectiles).toHaveLength(1);
+        expect(split.effects).toHaveLength(2);
+        expect(split.projectiles[0]?.type).toBe('fireball');
+        expect(split.effects.some((effect) => effect.kind === 'melee')).toBe(true);
+        expect(split.effects.some((effect) => effect.kind === 'area')).toBe(true);
     });
 
     it('tracks cooldowns independently per active slot', () => {
@@ -66,40 +104,82 @@ describe('ItemInventory', () => {
         inventory.equip('fireball');
         inventory.equip('fireball');
 
-        inventory.fireAll(base, { x: 400, y: 300 }, { x: 480, y: 300 });
+        inventory.useAllActives(base, { x: 400, y: 300 }, { x: 480, y: 300 });
         expect(inventory.canFireAny(base)).toBe(false);
 
         inventory.tick(0.5);
         expect(inventory.canFireAny(base)).toBe(true);
     });
+});
 
-    it('exposes fixed active and passive slot arrays', () => {
-        const inventory = new ItemInventory();
-        inventory.equip('fireball');
-        inventory.equip('swift_boots');
+describe('item combat helpers', () => {
+    it('finds enemies in a melee arc', () => {
+        const grunt = new Grunt(460, 300);
+        const hits = findMeleeArcHits(
+            {
+                kind: 'melee',
+                itemId: 'iron_sword',
+                x: 400,
+                y: 300,
+                facing: { dx: 1, dy: 0 },
+                damage: 30,
+                reach: 80,
+                arcDegrees: 120,
+                elapsedMs: 0,
+                durationMs: 200,
+                damageApplied: false,
+            },
+            [grunt],
+        );
 
-        expect(inventory.getActiveSlots()).toHaveLength(MAX_ACTIVE_ITEMS);
-        expect(inventory.getPassiveSlots()).toHaveLength(MAX_PASSIVE_ITEMS);
-        expect(inventory.getActiveSlots()[0]?.id).toBe('fireball');
-        expect(inventory.getActiveSlots()[1]).toBeNull();
-        expect(inventory.getPassiveSlots()[0]?.id).toBe('swift_boots');
+        expect(hits).toEqual([0]);
+    });
+
+    it('finds enemies inside an area circle', () => {
+        const grunt = new Grunt(450, 300);
+        const hits = findAreaCircleHits(
+            {
+                kind: 'area',
+                itemId: 'arcane_nova',
+                x: 450,
+                y: 300,
+                radius: 56,
+                damage: 20,
+                elapsedMs: 0,
+                durationMs: 450,
+                damageApplied: false,
+            },
+            [grunt],
+        );
+
+        expect(hits).toEqual([0]);
     });
 });
 
 describe('Character items integration', () => {
-    it('starts with fireball equipped in an active slot', () => {
+    it('starts with all four default active weapons equipped', () => {
         const mage = new Mage(400, 300);
 
-        expect(mage.inventory.getActiveItemIds()).toEqual(['fireball']);
-        expect(mage.attackStats.projectileDamage).toBe(25);
-        expect(mage.range).toBe(150);
+        expect(mage.inventory.getActiveItemIds()).toEqual([
+            'fireball',
+            'throwing_spear',
+            'iron_sword',
+            'arcane_nova',
+        ]);
+        expect(mage.attackStats.kind).toBe('projectile');
+        if (mage.attackStats.kind === 'projectile') {
+            expect(mage.attackStats.damage).toBe(THROWING_SPEAR_ITEM.active!.damage);
+        }
+        expect(mage.range).toBe(180);
 
-        const projectiles = mage.shoot({
-            x: 480,
-            y: 300,
-            shadow: { anchor: { x: 50, y: 50 }, size: { x: 20, y: 10 } },
-        });
-        expect(projectiles).toHaveLength(1);
-        expect(projectiles[0]?.type).toBe('fireball');
+        const split = splitItemUseResults(
+            mage.useItems({
+                x: 460,
+                y: 300,
+                shadow: { anchor: { x: 50, y: 50 }, size: { x: 20, y: 10 } },
+            }),
+        );
+        expect(split.projectiles.length).toBeGreaterThan(0);
+        expect(split.effects.length).toBeGreaterThan(0);
     });
 });

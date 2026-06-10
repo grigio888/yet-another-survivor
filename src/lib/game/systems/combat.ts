@@ -5,8 +5,13 @@
 import { SCORING } from '../config/index.js';
 import type { Projectile, CollisionPair, CharacterHit, MeleeHit } from './collision.js';
 import { findCollisions, findCharacterHits, findMeleeHits } from './collision.js';
+import type { ItemEffect } from '../items/effects/types.js';
+import { spawnItemEffects, tickItemEffects } from './itemEffects.js';
 import { Enemy } from '../entities/enemies/Enemy.js';
 import { Character } from '../entities/characters/Character.js';
+import { getEntityAnchorPoint } from '../rendering/shadow.js';
+import type { DamagePopup } from '../polish/damageNumbers.js';
+import { enemyDamagePopup, playerDamagePopup } from '../polish/damagePopups.js';
 
 export interface KillRecord {
     enemyIndex: number;
@@ -26,6 +31,7 @@ export interface BattleResult {
     characterHit: boolean;
     characterDamaged: boolean;
     characterDamage: number;
+    damagePopups: DamagePopup[];
 }
 
 export interface CombatStats {
@@ -53,10 +59,12 @@ function applyDamageToEnemy(
 function resolveProjectileDamage(
     projectiles: Projectile[],
     enemies: Enemy[],
-    collisionPairs: CollisionPair[]
-): { kills: KillRecord[]; projectilesToRemove: Set<number> } {
+    collisionPairs: CollisionPair[],
+    characterX: number,
+): { kills: KillRecord[]; projectilesToRemove: Set<number>; damagePopups: DamagePopup[] } {
     const kills: KillRecord[] = [];
     const projectilesToRemove = new Set<number>();
+    const damagePopups: DamagePopup[] = [];
 
     for (const pair of collisionPairs) {
         const {pIndex, eIndex} = pair;
@@ -70,6 +78,10 @@ function resolveProjectileDamage(
 
         projectilesToRemove.add(pIndex);
 
+        if (damageDealt > 0) {
+            damagePopups.push(enemyDamagePopup(enemy, damageDealt, characterX));
+        }
+
         if (wasAlive && !enemy.isAlive() && damageDealt > 0) {
             kills.push({
                 enemyIndex: eIndex,
@@ -82,6 +94,7 @@ function resolveProjectileDamage(
     return {
         kills,
         projectilesToRemove,
+        damagePopups,
     };
 }
 
@@ -117,28 +130,61 @@ function updateCombatStats(
     return scoreGained;
 }
 
+function playerHitSourceX(
+    projectileCharCollisions: CharacterHit[],
+    charEnemyCollisions: MeleeHit[],
+    enemies: Enemy[],
+    enemyProjectiles: Projectile[],
+    characterX: number,
+): number {
+    if (charEnemyCollisions.length > 0) {
+        const enemy = enemies[charEnemyCollisions[0].eIndex];
+        if (enemy) return getEntityAnchorPoint(enemy).x;
+    }
+
+    if (projectileCharCollisions.length > 0) {
+        const projectile = enemyProjectiles[projectileCharCollisions[0].pIndex];
+        if (projectile) return projectile.x;
+    }
+
+    return characterX;
+}
+
+export function applyCombatKills(stats: CombatStats, kills: KillRecord[], dt: number): number {
+    return updateCombatStats(stats, kills, dt);
+}
+
 export function processCombat(
     playerProjectiles: Projectile[],
     enemyProjectiles: Projectile[],
     enemies: Enemy[],
     character: Character,
     stats: CombatStats,
-    dt: number
-): BattleResult {
+    dt: number,
+    itemEffects: ItemEffect[] = [],
+): BattleResult & { itemEffects: ItemEffect[] } {
     const {
         projectileEnEnemyCollisions,
         projectileCharCollisions,
         charEnemyCollisions,
     } = collisionDetection(playerProjectiles, enemyProjectiles, enemies, character);
 
+    const characterAnchor = getEntityAnchorPoint(character);
+
     const {
         kills: playerKills,
         projectilesToRemove: playerProjectilesToRemove,
+        damagePopups: projectileDamagePopups,
     } = resolveProjectileDamage(
         playerProjectiles,
         enemies,
-        projectileEnEnemyCollisions
+        projectileEnEnemyCollisions,
+        characterAnchor.x,
     );
+
+    const itemTick = tickItemEffects(itemEffects, enemies, dt * 1000, characterAnchor.x);
+    const allPlayerKills = [...playerKills, ...itemTick.kills];
+    const damagePopups: DamagePopup[] = [...projectileDamagePopups, ...itemTick.damagePopups];
 
     const characterHit = projectileCharCollisions.length > 0 || charEnemyCollisions.length > 0;
     let characterDamage = 0;
@@ -157,14 +203,27 @@ export function processCombat(
         if (characterDamage > 0 && !character.isInvincible()) {
             character.takeDamage(characterDamage);
             characterDamaged = true;
+            damagePopups.push(
+                playerDamagePopup(
+                    character,
+                    characterDamage,
+                    playerHitSourceX(
+                        projectileCharCollisions,
+                        charEnemyCollisions,
+                        enemies,
+                        enemyProjectiles,
+                        characterAnchor.x,
+                    ),
+                ),
+            );
         }
     }
 
-    const scoreGained = updateCombatStats(stats, playerKills, dt);
+    const scoreGained = updateCombatStats(stats, allPlayerKills, dt);
 
     return {
         combat: {
-            kills: playerKills,
+            kills: allPlayerKills,
             scoreGained,
             projectilesToRemove: playerProjectilesToRemove,
             enemyProjectilesToRemove,
@@ -172,6 +231,8 @@ export function processCombat(
         characterHit,
         characterDamaged,
         characterDamage,
+        damagePopups,
+        itemEffects: itemTick.effects,
     };
 }
 

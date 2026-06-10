@@ -9,7 +9,12 @@ import {
     type ProjectileSpriteSet,
 } from '../rendering/projectileSprites.js';
 import { separateEntities, type Projectile } from '../systems/collision.js';
-import { processCombat, type CombatStats } from '../systems/combat.js';
+import { processCombat, applyCombatKills, type CombatStats } from '../systems/combat.js';
+import { spawnItemEffects } from '../systems/itemEffects.js';
+import type { ItemEffect } from '../items/effects/types.js';
+import { splitItemUseResults } from '../items/Inventory.js';
+import { ITEMS } from '../items/registry.js';
+import { drawItemEffectVisual, type ItemVisualLibrary } from '../rendering/itemSprites.js';
 import { SpawningSystem } from '../systems/spawning.js';
 import type { GamePhase } from '../screens/types.js';
 import { GamePolish } from '../polish/GamePolish.js';
@@ -50,6 +55,7 @@ export class SurvivorSession {
     character: Character | null = null;
     playerProjectiles: Projectile[] = [];
     enemyProjectiles: Projectile[] = [];
+    itemEffects: ItemEffect[] = [];
     stats = createInitialStats();
     timeAlive = 0;
     invincible = false;
@@ -80,6 +86,7 @@ export class SurvivorSession {
 
         this.playerProjectiles = [];
         this.enemyProjectiles = [];
+        this.itemEffects = [];
         this.stats = createInitialStats();
         this.timeAlive = 0;
         this.character = new Mage(this.arenaWidth / 2, this.arenaHeight / 2);
@@ -93,6 +100,7 @@ export class SurvivorSession {
         this.spawning.endGame();
         this.playerProjectiles = [];
         this.enemyProjectiles = [];
+        this.itemEffects = [];
         this.character = null;
         this.stats = createInitialStats();
         this.timeAlive = 0;
@@ -140,9 +148,20 @@ export class SurvivorSession {
                     const aim = getEntityAnchorPoint(target);
                     this.character.faceToward(aim.x - origin.x, aim.y - origin.y);
                 }
-                const projectiles = this.character.shoot(target);
-                if (projectiles.length > 0) {
+                const results = this.character.useItems(target);
+                const { projectiles, effects } = splitItemUseResults(results);
+                if (projectiles.length > 0 || effects.length > 0) {
                     this.playerProjectiles.push(...projectiles);
+                    if (effects.length > 0) {
+                        const spawned = spawnItemEffects(
+                            effects,
+                            enemies,
+                            getEntityAnchorPoint(this.character).x,
+                        );
+                        this.itemEffects.push(...spawned.effects);
+                        applyCombatKills(this.stats, spawned.kills, 0);
+                        this.polish.spawnDamagePopups(spawned.damagePopups);
+                    }
                     this.polish.onShoot();
                 }
             }
@@ -174,7 +193,9 @@ export class SurvivorSession {
             this.character,
             this.stats,
             dt,
+            this.itemEffects,
         );
+        this.itemEffects = combatResult.itemEffects;
 
         this.applyCombatResult(combatResult);
         this.polish.onCombatResult(combatResult, enemies, this.character);
@@ -205,6 +226,7 @@ export class SurvivorSession {
         sprites: CharacterSpriteSet | null,
         projectileSprites: ProjectileSpriteSet | null,
         enemySprites: Partial<Record<EnemySpriteType, EnemySpriteLibrary>> | null = null,
+        itemVisuals: ItemVisualLibrary | null = null,
     ) {
         const width = this.arenaWidth;
         const height = this.arenaHeight;
@@ -247,6 +269,13 @@ export class SurvivorSession {
 
         drawProjectiles(ctx, this.playerProjectiles, projectileSprites);
 
+        for (const effect of this.itemEffects) {
+            const item = ITEMS[effect.itemId as keyof typeof ITEMS];
+            if (item) {
+                drawItemEffectVisual(ctx, effect, item, itemVisuals);
+            }
+        }
+
         ctx.fillStyle = '#f97316';
         for (const projectile of this.enemyProjectiles) {
             ctx.beginPath();
@@ -255,6 +284,7 @@ export class SurvivorSession {
         }
 
         this.polish.particles.draw(ctx);
+        this.polish.damageNumbers.draw(ctx);
         ctx.restore();
     }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FIREBALL_ITEM } from '$lib/game/items';
+import { FIREBALL_ITEM, isActiveItemVisuals } from '$lib/game/items';
 import { createProjectileFromAttack } from '$lib/game/items/types';
 import { projectileTravelAngle } from '$lib/game/rendering/projectileSprites';
 
@@ -10,9 +10,13 @@ describe('FIREBALL_ITEM', () => {
         expect(FIREBALL_ITEM.active?.projectileType).toBe('fireball');
     });
 
-    it('uses the fireball sprite', () => {
-        expect(FIREBALL_ITEM.sprite?.url).toContain('fireball');
-        expect(FIREBALL_ITEM.sprite?.size).toBe(20);
+    it('uses the fireball sprite via item visuals', () => {
+        expect(isActiveItemVisuals(FIREBALL_ITEM.visuals!)).toBe(true);
+        if (isActiveItemVisuals(FIREBALL_ITEM.visuals!)) {
+            expect(FIREBALL_ITEM.visuals.world.kind).toBe('projectile');
+            expect(String(FIREBALL_ITEM.visuals.world.sprite)).toContain('fireball');
+            expect(FIREBALL_ITEM.visuals.world.size).toBe(20);
+        }
     });
 });
 

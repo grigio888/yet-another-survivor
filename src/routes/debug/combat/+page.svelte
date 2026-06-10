@@ -14,10 +14,14 @@
     } from '$lib/game/rendering/enemySprites';
     import {
         drawProjectiles,
-        loadProjectileSprites,
         type ProjectileSpriteSet,
     } from '$lib/game/rendering/projectileSprites';
-    import { getProjectileSpriteUrls } from '$lib/game/items';
+    import { getItemVisualUrls, ACTIVE_ITEM_CATALOG, ITEMS, type ItemId } from '$lib/game/items';
+    import { loadItemVisualLibrary, drawItemEffectVisual } from '$lib/game/rendering/itemSprites';
+    import { splitItemUseResults } from '$lib/game/items/Inventory';
+    import { spawnItemEffects } from '$lib/game/systems/itemEffects';
+    import { applyCombatKills } from '$lib/game/systems/combat';
+    import type { ItemEffect } from '$lib/game/items/effects/types';
     import { separateEntities } from '$lib/game/systems/collision';
     import type { Projectile } from '$lib/game/systems/collision';
     import { processCombat } from '$lib/game/systems/combat';
@@ -44,6 +48,7 @@
     let projectileSprites = $state<ProjectileSpriteSet | null>(null);
     let playerProjectiles = $state<Projectile[]>([]);
     let enemyProjectiles = $state<Projectile[]>([]);
+    let itemEffects = $state<ItemEffect[]>([]);
     let frameId = $state(0);
     let lastTime = $state(0);
     let keys = $state(new Set<string>());
@@ -123,8 +128,14 @@
         enemyProjectiles = enemyProjectiles.filter(
             (p, i) => !result.combat.enemyProjectilesToRemove.has(i) && !offscreen(p)
         );
+        itemEffects = result.itemEffects;
         spawning.pruneDeadEnemies();
         return result;
+    }
+
+    function equipItem(itemId: ItemId) {
+        if (!character) return;
+        character.inventory.equip(itemId);
     }
 
     function addEnemy(type: EnemyType) {
@@ -143,7 +154,7 @@
         log.push(`Resolving combat: ${enemies.length} enemies, ${playerProjectiles.length} player bolts, ${enemyProjectiles.length} enemy bolts`);
 
         const result = applyCombatResult(
-            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, COMBAT_TICK_DT)
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, COMBAT_TICK_DT, itemEffects)
         );
 
         if (result.combat.kills.length > 0) {
@@ -207,6 +218,7 @@
     function resetAll() {
         playerProjectiles = [];
         enemyProjectiles = [];
+        itemEffects = [];
         if (character) {
             character.x = arenaWidth / 2;
             character.y = arenaHeight / 2;
@@ -276,9 +288,20 @@
                 if (movement.dx === 0 && movement.dy === 0) {
                     updateFacingTowardTarget(target);
                 }
-                const projs = character.shoot(target);
-                if (projs.length > 0) {
-                    playerProjectiles.push(...projs);
+                const results = character.useItems(target);
+                const { projectiles, effects } = splitItemUseResults(results);
+                if (projectiles.length > 0 || effects.length > 0) {
+                    playerProjectiles.push(...projectiles);
+                    if (effects.length > 0) {
+                        const spawned = spawnItemEffects(
+                            effects,
+                            enemies,
+                            getEntityAnchorPoint(character).x,
+                        );
+                        itemEffects.push(...spawned.effects);
+                        applyCombatKills(stats, spawned.kills, 0);
+                        polish.spawnDamagePopups(spawned.damagePopups);
+                    }
                     polish.onShoot();
                 }
             }
@@ -300,7 +323,7 @@
         }
 
         const combatResult = applyCombatResult(
-            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt)
+            processCombat(playerProjectiles, enemyProjectiles, enemies, character, stats, dt, itemEffects)
         );
         polish.onCombatResult(combatResult, enemies, character);
 
@@ -336,6 +359,7 @@
             `enemies: ${enemies.length}`,
             `player projectiles: ${playerProjectiles.length}`,
             `enemy projectiles: ${enemyProjectiles.length}`,
+            `item effects: ${itemEffects.length}`,
             ...(character ? [`player lives: ${character.lives}`] : []),
             `score: ${stats.score}`,
             `kills: ${stats.kills}`,
@@ -372,6 +396,11 @@
 
         drawProjectiles(ctx, playerProjectiles, projectileSprites);
 
+        for (const effect of itemEffects) {
+            const item = ITEMS[effect.itemId as ItemId];
+            drawItemEffectVisual(ctx, effect, item, projectileSprites);
+        }
+
         ctx.fillStyle = '#f97316';
         for (const p of enemyProjectiles) {
             ctx.beginPath();
@@ -380,6 +409,7 @@
         }
 
         polish.particles.draw(ctx);
+        polish.damageNumbers.draw(ctx);
         ctx.restore();
     }
 
@@ -409,7 +439,7 @@
             enemySprites = loaded;
         });
 
-        loadProjectileSprites(getProjectileSpriteUrls()).then((loaded) => {
+        loadItemVisualLibrary(getItemVisualUrls()).then((loaded) => {
             projectileSprites = loaded;
         });
 
@@ -503,6 +533,13 @@
     {/snippet}
 
     {#snippet right()}
+        <div class="flex flex-col gap-2">
+            <p class="text-sm ro-muted">Equip active items into the next open slot.</p>
+            {#each ACTIVE_ITEM_CATALOG as entry}
+                <RoButton onclick={() => equipItem(entry.id)}>{entry.label}</RoButton>
+            {/each}
+        </div>
+        <hr class="h-px border-[#a8c8f0]/60" />
         <div class="flex flex-col gap-2">
             <p class="text-sm ro-muted">
                 Spawn enemies off-screen via <code class="text-xs">spawnEnemy</code>.

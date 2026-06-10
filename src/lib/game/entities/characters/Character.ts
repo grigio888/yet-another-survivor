@@ -3,9 +3,12 @@ import { Entity } from '../Entity.js';
 import {
     DEFAULT_STARTING_ITEMS,
     ItemInventory,
+    splitItemUseResults,
     type ItemId,
+    type ItemUseResult,
 } from '../../items/index.js';
-import type { AttackStats, CharacterBaseStats } from '../../items/types.js';
+import type { CharacterBaseStats } from '../../items/types.js';
+import type { ResolvedActiveStats } from '../../items/resolveActive.js';
 import type { Projectile } from '../../systems/collision.js';
 import { SpriteAnimator } from '../../animation/SpriteAnimator.js';
 import type {
@@ -101,7 +104,7 @@ export class Character extends Entity {
         return Character.baseStatsFrom(this.stats);
     }
 
-    get attackStats(): AttackStats {
+    get attackStats(): ResolvedActiveStats {
         return this.inventory.getAttackStats(this.baseStats);
     }
 
@@ -170,14 +173,18 @@ export class Character extends Entity {
         return best;
     }
 
-    shoot(target: ShadowedEntity): Projectile[] {
+    useItems(target: ShadowedEntity): ItemUseResult[] {
         const origin = getEntityAnchorPoint(this);
         const aim = getEntityAnchorPoint(target);
-        const projectiles = this.inventory.fireAll(this.baseStats, origin, aim);
-        if (projectiles.length > 0) {
+        const results = this.inventory.useAllActives(this.baseStats, origin, aim);
+        if (results.length > 0) {
             this.animator.triggerAttack();
         }
-        return projectiles;
+        return results;
+    }
+
+    shoot(target: ShadowedEntity): Projectile[] {
+        return splitItemUseResults(this.useItems(target)).projectiles;
     }
 
     takeDamage(amount: number) {

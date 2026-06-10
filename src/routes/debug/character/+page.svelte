@@ -520,138 +520,144 @@
     {/snippet}
 
     {#snippet left()}
-        <p class="text-sm ro-muted">
-            Gray ellipse = shadow (entity x/y is shadow center). Cyan cross = sprite start.
-            Amber rectangle = hitbox. Blue ring = attack range.
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Character
+        </h2>
+        <div class="flex flex-wrap gap-2 mb-4">
+            {#each CHARACTER_OPTIONS as option}
+                <RoButton
+                    class={selectedType === option.type ? 'ring-2 ring-[#fbbf24]' : ''}
+                    onclick={() => switchCharacter(option.type)}
+                >
+                    {option.label}
+                </RoButton>
+            {/each}
+        </div>
+
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Animation
+        </h2>
+        <div class="flex flex-wrap gap-2 mb-4">
+            {#each ANIMATION_STATES as state}
+                <RoButton
+                    class={!useRuntimeAnimator && selectedAnimation === state
+                        ? 'ring-2 ring-[#fbbf24]'
+                        : ''}
+                    onclick={() => selectAnimation(state)}
+                >
+                    {ANIMATION_LABELS[state]}
+                </RoButton>
+            {/each}
+        </div>
+        <RoButton
+            class={useRuntimeAnimator ? 'ring-2 ring-[#fbbf24]' : ''}
+            onclick={enableLivePreview}
+        >
+            Live (movement drives anim)
+        </RoButton>
+        <p class="text-xs ro-muted">
+            Live mode switches idle/walking from movement.
+        </p>
+        <p class="text-xs ro-muted">
+            Pick a state above to scrub frames while standing still.
         </p>
 
-        <RoWindow title="Character" bodyClass="p-3">
-            <div class="flex flex-wrap gap-2">
-                {#each CHARACTER_OPTIONS as option}
-                    <RoButton
-                        class={selectedType === option.type ? 'ring-2 ring-[#fbbf24]' : ''}
-                        onclick={() => switchCharacter(option.type)}
-                    >
-                        {option.label}
-                    </RoButton>
-                {/each}
-            </div>
-        </RoWindow>
 
-        <RoWindow title="Animation" bodyClass="p-3 space-y-2">
-            <div class="flex flex-wrap gap-2">
-                {#each ANIMATION_STATES as state}
-                    <RoButton
-                        class={!useRuntimeAnimator && selectedAnimation === state
-                            ? 'ring-2 ring-[#fbbf24]'
-                            : ''}
-                        onclick={() => selectAnimation(state)}
-                    >
-                        {ANIMATION_LABELS[state]}
-                    </RoButton>
-                {/each}
-            </div>
-            <RoButton
-                class={useRuntimeAnimator ? 'ring-2 ring-[#fbbf24]' : ''}
-                onclick={enableLivePreview}
-            >
-                Live (movement drives anim)
-            </RoButton>
-            <p class="text-xs ro-muted">
-                Live mode switches idle/walking from movement. Pick a state above to scrub frames
-                while standing still.
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Facing
+        </h2>
+        <div class="flex flex-wrap gap-2 mb-4">
+            {#each FACING_OPTIONS as option}
+                <RoButton
+                    class={facingToSpriteKey(drawFacing) === facingToSpriteKey(option.facing)
+                        ? 'ring-2 ring-[#fbbf24]'
+                        : ''}
+                    onclick={() => selectFacing(option.facing)}
+                >
+                    {option.label}
+                </RoButton>
+            {/each}
+        </div>
+
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Frame Debug
+        </h2>
+        <div class="space-y-3 relative">
+            <p class="text-sm ro-muted absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 {!useRuntimeAnimator ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300">
+                Frame scrubbing applies in preview mode. Click an animation state or disable Live
+                to scrub.
             </p>
-        </RoWindow>
-
-        <RoWindow title="Facing" bodyClass="p-3">
-            <div class="flex flex-wrap gap-2">
-                {#each FACING_OPTIONS as option}
-                    <RoButton
-                        class={facingToSpriteKey(drawFacing) === facingToSpriteKey(option.facing)
-                            ? 'ring-2 ring-[#fbbf24]'
-                            : ''}
-                        onclick={() => selectFacing(option.facing)}
-                    >
-                        {option.label}
-                    </RoButton>
-                {/each}
-            </div>
-        </RoWindow>
-
-        <RoWindow title="Frame Debug" bodyClass="p-3 space-y-3">
-            {#if useRuntimeAnimator}
-                <p class="text-sm ro-muted">
-                    Frame scrubbing applies in preview mode. Click an animation state or disable Live
-                    to scrub.
-                </p>
-            {:else}
-            <label class="flex items-center gap-2 text-sm ro-muted">
-                <input
-                    type="checkbox"
-                    checked={autoPlayFrames}
-                    onchange={(e) => setAutoPlay(e.currentTarget.checked)}
-                />
-                Auto-play frames
-            </label>
-
-            <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                    <span class="ro-muted">Frame</span>
-                    <span class="font-mono text-[#1e293b]">{displayFrameIndex + 1} / {frameCount}</span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max={Math.max(0, frameCount - 1)}
-                    value={displayFrameIndex}
-                    disabled={autoPlayFrames}
-                    class="w-full disabled:opacity-50"
-                    oninput={(e) => {
-                        autoPlayFrames = false;
-                        clampManualFrame(Number(e.currentTarget.value));
-                    }}
-                />
-                <div class="flex flex-wrap gap-2">
-                    <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(-1)}>Prev</RoButton>
-                    <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(1)}>Next</RoButton>
-                    <RoButton onclick={resetFramePlayback}>Reset</RoButton>
-                </div>
-            </div>
-
-            <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                    <span class="ro-muted">FPS</span>
-                    <span class="font-mono text-[#1e293b]">
-                        {activeFps.toFixed(1)}{overrideFps ? '' : ` (config: ${configFps})`}
-                    </span>
-                </div>
-                <label class="flex items-center gap-2 text-sm ro-muted">
-                    <input type="checkbox" bind:checked={overrideFps} />
-                    Override frame rate
+            <div class="flex flex-col gap-3 {useRuntimeAnimator ? 'opacity-25' : ''} transition-opacity duration-300">
+                <label class="flex items-center gap-2 text-sm ro-muted ">
+                    <input
+                        type="checkbox"
+                        checked={autoPlayFrames}
+                        onchange={(e) => setAutoPlay(e.currentTarget.checked)}
+                    />
+                    Auto-play frames
                 </label>
-                <input
-                    type="range"
-                    min="1"
-                    max="24"
-                    step="0.5"
-                    bind:value={previewFps}
-                    disabled={!overrideFps}
-                    class="w-full disabled:opacity-50"
-                />
-                <input
-                    type="number"
-                    min="0.5"
-                    max="60"
-                    step="0.5"
-                    bind:value={previewFps}
-                    disabled={!overrideFps}
-                    class="w-full rounded border border-[#a8c8f0]/60 bg-white/80 px-2 py-1 text-sm disabled:opacity-50"
-                />
+    
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="ro-muted">Frame</span>
+                        <span class="font-mono text-[#1e293b]">{displayFrameIndex + 1} / {frameCount}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max={Math.max(0, frameCount - 1)}
+                        value={displayFrameIndex}
+                        disabled={autoPlayFrames}
+                        class="w-full disabled:opacity-50"
+                        oninput={(e) => {
+                            autoPlayFrames = false;
+                            clampManualFrame(Number(e.currentTarget.value));
+                        }}
+                    />
+                    <div class="flex flex-wrap gap-2">
+                        <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(-1)}>Prev</RoButton>
+                        <RoButton disabled={autoPlayFrames} onclick={() => stepFrame(1)}>Next</RoButton>
+                        <RoButton onclick={resetFramePlayback}>Reset</RoButton>
+                    </div>
+                </div>
+    
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="ro-muted">FPS</span>
+                        <span class="font-mono text-[#1e293b]">
+                            {activeFps.toFixed(1)}{overrideFps ? '' : ` (config: ${configFps})`}
+                        </span>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm ro-muted">
+                        <input type="checkbox" bind:checked={overrideFps} />
+                        Override frame rate
+                    </label>
+                    <input
+                        type="range"
+                        min="1"
+                        max="24"
+                        step="0.5"
+                        bind:value={previewFps}
+                        disabled={!overrideFps}
+                        class="w-full disabled:opacity-50"
+                    />
+                    <input
+                        type="number"
+                        min="0.5"
+                        max="60"
+                        step="0.5"
+                        bind:value={previewFps}
+                        disabled={!overrideFps}
+                        class="w-full rounded border border-[#a8c8f0]/60 bg-white/80 px-2 py-1 text-sm disabled:opacity-50"
+                    />
+                </div>
             </div>
-            {/if}
-        </RoWindow>
+        </div>
 
-        <RoWindow title="Movement" bodyClass="p-3 space-y-2">
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Movement
+        </h2>
+        <div class="space-y-2">
             <p class="text-sm ro-muted">WASD/Arrows: Move · Shift: Sprint</p>
             <p class="text-sm">
                 Speed: <strong class="text-[#1e293b]">{stats.speed} px/s</strong>
@@ -660,9 +666,23 @@
                 <input type="checkbox" bind:checked={showMovement} />
                 Speed orbit when Walking is selected
             </label>
-        </RoWindow>
+        </div>
 
-        <RoWindow title="Stats" bodyClass="p-3">
+
+        <div class="flex flex-col gap-2">
+            <RoButton onclick={takeDamage}>Take Damage (-1 life)</RoButton>
+            <RoButton onclick={healFull}>Full Heal</RoButton>
+            <RoButton onclick={() => resetCharacter()}>Reset</RoButton>
+        </div>
+    {/snippet}
+
+    {#snippet right()}
+        <DebugHud lines={hudLines} />
+
+        <h2 class="w-full text-center text-lg font-bold bg-gradient-to-b from-[#6ea3dc] via-[#5a8fc8] to-[#4d7eb8] text-white py-2">
+            Stats
+        </h2>
+        <div class="space-y-2">
             <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
                 <dt class="ro-muted">HP</dt><dd>{stats.maxHp}</dd>
                 <dt class="ro-muted">Lives</dt><dd>{stats.maxLives}</dd>
@@ -695,16 +715,6 @@
                 <dt class="ro-muted">Sprite</dt>
                 <dd>{hasArt ? 'Loaded' : 'Square fallback'}</dd>
             </dl>
-        </RoWindow>
-
-        <div class="flex flex-col gap-2">
-            <RoButton onclick={takeDamage}>Take Damage (-1 life)</RoButton>
-            <RoButton onclick={healFull}>Full Heal</RoButton>
-            <RoButton onclick={() => resetCharacter()}>Reset</RoButton>
         </div>
-    {/snippet}
-
-    {#snippet right()}
-        <DebugHud lines={hudLines} />
     {/snippet}
 </DebugPlayground>

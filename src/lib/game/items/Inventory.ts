@@ -1,78 +1,11 @@
 import type { Projectile } from '../systems/collision.js';
 import { ITEMS, type ItemId } from './registry.js';
-import type {
-    AttackStats,
-    CharacterBaseStats,
-    ItemDefinition,
-    ModifiableStat,
-} from './types.js';
-import {
-    MAX_ACTIVE_ITEMS,
-    MAX_PASSIVE_ITEMS,
-    createProjectileFromAttack,
-    isInAttackRange,
-} from './types.js';
-
-function applyModifier(value: number, op: 'add' | 'mul', amount: number): number {
-    return op === 'add' ? value + amount : value * amount;
-}
-
-function applyPassives<T extends Record<string, number>>(
-    base: T,
-    items: ItemDefinition[],
-    statKeys: (keyof T)[],
-): T {
-    const result = { ...base };
-
-    for (const item of items) {
-        for (const perk of item.passives) {
-            if (!statKeys.includes(perk.stat as keyof T)) continue;
-            const key = perk.stat as keyof T;
-            result[key] = applyModifier(result[key], perk.op, perk.value) as T[keyof T];
-        }
-    }
-
-    return result;
-}
-
-function attackStatsFromItem(
-    base: CharacterBaseStats,
-    item: ItemDefinition,
-    passiveItems: ItemDefinition[],
-): AttackStats {
-    const active = item.active;
-    if (!active || active.kind !== 'projectile') {
-        throw new Error(`Active item "${item.id}" has no projectile attack.`);
-    }
-
-    const attackBase: AttackStats = {
-        range: active.range,
-        cooldownMs: active.cooldownMs,
-        projectileDamage: active.damage,
-        projectileSpeed: active.speed,
-        projectileColor: active.projectileColor,
-        projectileType: active.projectileType,
-        sprite: item.sprite?.url,
-        spriteSize: item.sprite?.size,
-    };
-
-    const resolved = applyPassives(
-        { ...base, ...attackBase },
-        passiveItems,
-        ['speed', 'maxLives', 'maxHp', 'range', 'cooldownMs', 'projectileDamage', 'projectileSpeed'],
-    );
-
-    return {
-        range: resolved.range,
-        cooldownMs: resolved.cooldownMs,
-        projectileDamage: resolved.projectileDamage,
-        projectileSpeed: resolved.projectileSpeed,
-        projectileColor: resolved.projectileColor,
-        projectileType: resolved.projectileType,
-        sprite: attackBase.sprite,
-        spriteSize: attackBase.spriteSize,
-    };
-}
+import { resolveActiveStats, getActiveDamage } from './resolveActive.js';
+import type { CharacterBaseStats, ItemDefinition } from './types.js';
+import { isInAttackRange } from './types.js';
+import { MAX_ACTIVE_ITEMS, MAX_PASSIVE_ITEMS } from './types.js';
+import type { ItemEffect } from './effects/types.js';
+import { useActiveItem, type ItemUseResult } from './useActive.js';
 
 export class ItemInventory {
     private readonly activeItems: (ItemId | null)[] = Array(MAX_ACTIVE_ITEMS).fill(null);
@@ -134,20 +67,20 @@ export class ItemInventory {
         return this.passiveItems.map((id) => (id ? ITEMS[id] : null));
     }
 
-    getAttackStatsForItem(base: CharacterBaseStats, itemId: ItemId): AttackStats {
-        return attackStatsFromItem(base, ITEMS[itemId], this.getPassiveItems());
+    getResolvedActiveStats(base: CharacterBaseStats, itemId: ItemId) {
+        return resolveActiveStats(base, ITEMS[itemId], this.getPassiveItems());
     }
 
     /** Summary stats from the longest-range active item (after passives). */
-    getAttackStats(base: CharacterBaseStats): AttackStats {
+    getAttackStats(base: CharacterBaseStats) {
         const actives = this.getActiveItems();
         if (actives.length === 0) {
             throw new Error('Character must equip at least one active item.');
         }
 
-        let best = this.getAttackStatsForItem(base, actives[0].id as ItemId);
+        let best = this.getResolvedActiveStats(base, actives[0].id as ItemId);
         for (const item of actives.slice(1)) {
-            const stats = this.getAttackStatsForItem(base, item.id as ItemId);
+            const stats = this.getResolvedActiveStats(base, item.id as ItemId);
             if (stats.range > best.range) {
                 best = stats;
             }
@@ -158,14 +91,14 @@ export class ItemInventory {
     getMaxRange(base: CharacterBaseStats): number {
         if (this.getActiveItems().length === 0) return 0;
         return Math.max(
-            ...this.getActiveItemIds().map((id) => this.getAttackStatsForItem(base, id).range),
+            ...this.getActiveItemIds().map((id) => this.getResolvedActiveStats(base, id).range),
         );
     }
 
     getMaxDamage(base: CharacterBaseStats): number {
         if (this.getActiveItems().length === 0) return 0;
         return Math.max(
-            ...this.getActiveItemIds().map((id) => this.getAttackStatsForItem(base, id).projectileDamage),
+            ...this.getActiveItemIds().map((id) => getActiveDamage(this.getResolvedActiveStats(base, id))),
         );
     }
 
@@ -183,7 +116,7 @@ export class ItemInventory {
             const itemId = this.activeItems[i];
             if (!itemId) continue;
 
-            const stats = this.getAttackStatsForItem(base, itemId);
+            const stats = this.getResolvedActiveStats(base, itemId);
             if (this.activeCooldownMs[i] >= stats.cooldownMs) {
                 return true;
             }
@@ -191,28 +124,57 @@ export class ItemInventory {
         return false;
     }
 
-    fireAll(
+    useAllActives(
         base: CharacterBaseStats,
         origin: { x: number; y: number },
         target: { x: number; y: number },
-    ): Projectile[] {
-        const projectiles: Projectile[] = [];
+    ): ItemUseResult[] {
+        const results: ItemUseResult[] = [];
 
         for (let i = 0; i < MAX_ACTIVE_ITEMS; i++) {
             const itemId = this.activeItems[i];
             if (!itemId) continue;
 
-            const stats = this.getAttackStatsForItem(base, itemId);
+            const stats = this.getResolvedActiveStats(base, itemId);
             if (this.activeCooldownMs[i] < stats.cooldownMs) continue;
             if (!isInAttackRange(origin, target, stats.range)) continue;
 
-            const projectile = createProjectileFromAttack({ origin, target, attack: stats });
-            if (!projectile) continue;
+            const result = useActiveItem(itemId, base, origin, target, this.getPassiveItems());
+            if (!result) continue;
 
-            projectiles.push(projectile);
+            results.push(result);
             this.activeCooldownMs[i] = 0;
         }
 
-        return projectiles;
+        return results;
     }
+
+    /** Projectile-only convenience wrapper. */
+    fireAll(
+        base: CharacterBaseStats,
+        origin: { x: number; y: number },
+        target: { x: number; y: number },
+    ): Projectile[] {
+        return this.useAllActives(base, origin, target)
+            .filter((result): result is ItemUseResult & { kind: 'projectile' } => result.kind === 'projectile')
+            .map((result) => result.projectile);
+    }
+}
+
+export function splitItemUseResults(results: readonly ItemUseResult[]): {
+    projectiles: Projectile[];
+    effects: ItemEffect[];
+} {
+    const projectiles: Projectile[] = [];
+    const effects: ItemEffect[] = [];
+
+    for (const result of results) {
+        if (result.kind === 'projectile') {
+            projectiles.push(result.projectile);
+        } else {
+            effects.push(result.effect);
+        }
+    }
+
+    return { projectiles, effects };
 }

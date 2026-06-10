@@ -63,6 +63,9 @@ describe('Combat System', () => {
             // Enemy should take 25 damage
             expect(enemy.hp).toBe(25);
             expect(result.combat.kills).toHaveLength(0); // Not dead yet
+            expect(result.damagePopups).toHaveLength(1);
+            expect(result.damagePopups[0]?.amount).toBe(25);
+            expect(result.damagePopups[0]?.target).toBe('enemy');
         });
 
         it('detects enemy kills and calculates score', () => {
@@ -157,10 +160,13 @@ describe('Combat System', () => {
             expect(result.characterHit).toBe(true);
             expect(result.characterDamaged).toBe(true);
             expect(result.characterDamage).toBe(15);
+            expect(result.damagePopups).toHaveLength(1);
+            expect(result.damagePopups[0]?.amount).toBe(15);
+            expect(result.damagePopups[0]?.target).toBe('player');
             expect(character.lives).toBeLessThan(prevLives);
         });
 
-        it('does not damage player if invincible', () => {
+        it('does not spawn player damage numbers while invincible', () => {
             character.invincibleUntil = Date.now() + 5000;
 
             enemyProjectiles.push({
@@ -176,6 +182,7 @@ describe('Combat System', () => {
 
             expect(result.characterHit).toBe(true);
             expect(result.characterDamaged).toBe(false);
+            expect(result.damagePopups).toHaveLength(0);
             expect(character.lives).toBe(prevLives);
             expect(result.combat.enemyProjectilesToRemove.has(0)).toBe(true);
         });
@@ -199,6 +206,8 @@ describe('Combat System', () => {
             expect(result.characterHit).toBe(true);
             expect(result.characterDamaged).toBe(true);
             expect(result.characterDamage).toBe(1);
+            expect(result.damagePopups).toHaveLength(1);
+            expect(result.damagePopups[0]?.target).toBe('player');
             expect(character.lives).toBe(prevLives - 1);
         });
 

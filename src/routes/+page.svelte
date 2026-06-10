@@ -10,7 +10,6 @@
         type CharacterSpriteSet,
     } from '$lib/game/rendering/characterSprites';
     import {
-        loadProjectileSprites,
         type ProjectileSpriteSet,
     } from '$lib/game/rendering/projectileSprites';
     import {
@@ -18,7 +17,8 @@
         type EnemySpriteLibrary,
     } from '$lib/game/rendering/enemySprites';
     import type { EnemySpriteType } from '$lib/game/entities/enemies';
-    import { getProjectileSpriteUrls } from '$lib/game/items';
+    import { getItemVisualUrls } from '$lib/game/items';
+    import { loadItemVisualLibrary, type ItemVisualLibrary } from '$lib/game/rendering/itemSprites';
     import GameCanvasFrame from '$lib/components/GameCanvasFrame.svelte';
     import CharacterItemLoadout from '$lib/components/CharacterItemLoadout.svelte';
     import {
@@ -101,7 +101,7 @@
 
         const ctx = canvas?.getContext('2d');
         if (ctx) {
-            session.draw(ctx, sprites, projectileSprites, enemySprites);
+            session.draw(ctx, sprites, projectileSprites, enemySprites, projectileSprites);
         }
         flashAlpha = session.polish.effects.flashAlpha;
         fadeAlpha = session.polish.effects.fadeAlpha;
@@ -113,7 +113,7 @@
     function drawIdleArena() {
         const ctx = canvas?.getContext('2d');
         if (!ctx) return;
-        session.draw(ctx, sprites, projectileSprites, enemySprites);
+        session.draw(ctx, sprites, projectileSprites, enemySprites, projectileSprites);
     }
 
     $effect(() => {
@@ -138,7 +138,7 @@
             enemySprites = loaded;
         });
 
-        loadProjectileSprites(getProjectileSpriteUrls()).then((loaded) => {
+        loadItemVisualLibrary(getItemVisualUrls()).then((loaded) => {
             projectileSprites = loaded;
         });
 

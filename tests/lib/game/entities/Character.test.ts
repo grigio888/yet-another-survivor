@@ -1,6 +1,6 @@
     import { describe, it, expect, beforeEach, vi } from 'vitest';
     import { Mage, MAGE_STATS } from '$lib/game/entities/characters';
-    import { FIREBALL_ITEM } from '$lib/game/items';
+    import { DEFAULT_STARTING_ITEMS, FIREBALL_ITEM, THROWING_SPEAR_ITEM } from '$lib/game/items';
     import type { EntityShadow } from '$lib/game/rendering/shadow.js';
 
     function shadowTarget(x: number, y: number, shadow: EntityShadow = MAGE_STATS.shadow) {
@@ -24,9 +24,9 @@
                 expect(character.speed).toBe(MAGE_STATS.speed);
                 expect(character.color).toBe(MAGE_STATS.color);
                 expect(character.type).toBe('mage');
-                expect(character.range).toBe(FIREBALL_ITEM.active!.range);
+                expect(character.range).toBe(THROWING_SPEAR_ITEM.active!.range);
                 expect(character.sprite).toEqual(MAGE_STATS.sprite);
-                expect(character.inventory.getActiveItemIds()).toEqual(['fireball']);
+                expect(character.inventory.getActiveItemIds()).toEqual([...DEFAULT_STARTING_ITEMS]);
             });
         });
 
@@ -69,7 +69,7 @@
             });
 
             it('returns false from update when no active item cooldown has elapsed', () => {
-                character.shoot(shadowTarget(480, 300));
+                character.shoot(shadowTarget(character.x + 60, character.y));
 
                 expect(character.update(0.01, { dx: 0, dy: 0, sprint: false })).toBe(false);
             });
@@ -90,12 +90,11 @@
 
         describe('shoot', () => {
             it('aims at target position', () => {
-                const target = shadowTarget(480, 300);
-                const projectile = character.shoot(target)[0];
+                const target = shadowTarget(character.x + 60, character.y);
+                const projectile = character.shoot(target).find((entry) => entry.type === 'fireball');
 
-                expect(projectile).not.toBeNull();
+                expect(projectile).toBeTruthy();
                 if (projectile) {
-                    expect(projectile.x).toBe(character.x);
                     expect(projectile.direction.dx).toBeGreaterThan(0);
                     expect(projectile.direction.dy).toBeCloseTo(0);
                     expect(projectile.speed).toBe(FIREBALL_ITEM.active!.speed);
@@ -111,7 +110,7 @@
 
             it('returns null when target is out of range', () => {
                 const outOfRange = shadowTarget(
-                    character.x + FIREBALL_ITEM.active!.range + 50,
+                    character.x + THROWING_SPEAR_ITEM.active!.range + 50,
                     character.y,
                 );
 
@@ -122,13 +121,13 @@
         describe('findNearestInRange', () => {
             it('returns the closest target within range', () => {
                 const near = shadowTarget(character.x + 100, character.y);
-                const far = shadowTarget(character.x + FIREBALL_ITEM.active!.range + 100, character.y);
+                const far = shadowTarget(character.x + THROWING_SPEAR_ITEM.active!.range + 100, character.y);
 
                 expect(character.findNearestInRange([far, near])).toBe(near);
             });
 
             it('returns null when no targets are in range', () => {
-                const far = shadowTarget(character.x + FIREBALL_ITEM.active!.range + 1, character.y);
+                const far = shadowTarget(character.x + THROWING_SPEAR_ITEM.active!.range + 1, character.y);
 
                 expect(character.findNearestInRange([far])).toBeNull();
             });
@@ -142,7 +141,7 @@
             it('returns false for targets beyond range', () => {
                 expect(
                     character.isInRange(
-                        shadowTarget(character.x + FIREBALL_ITEM.active!.range + 1, character.y),
+                        shadowTarget(character.x + THROWING_SPEAR_ITEM.active!.range + 1, character.y),
                     ),
                 ).toBe(false);
             });

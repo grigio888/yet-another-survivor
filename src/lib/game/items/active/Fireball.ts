@@ -8,9 +8,14 @@ export const FIREBALL_ITEM = {
     description: 'Launches a blazing bolt at the nearest foe.',
     kind: 'active',
     passives: [],
-    sprite: {
-        url: fireballSprite,
-        size: 20,
+    visuals: {
+        icon: { src: fireballSprite, size: 28 },
+        world: {
+            kind: 'projectile',
+            sprite: fireballSprite,
+            size: 20,
+            rotateWithTravel: true,
+        },
     },
     active: {
         kind: 'projectile',

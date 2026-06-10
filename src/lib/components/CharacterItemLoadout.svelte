@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { ItemInventory } from '$lib/game/items/Inventory';
     import type { ItemDefinition } from '$lib/game/items/types';
-    import { MAX_ACTIVE_ITEMS, MAX_PASSIVE_ITEMS } from '$lib/game/items';
+    import { getItemIconVisual, MAX_ACTIVE_ITEMS, MAX_PASSIVE_ITEMS } from '$lib/game/items';
 
     interface Props {
         inventory: ItemInventory;
@@ -45,10 +45,10 @@
                     title={item?.description ?? 'Empty active slot'}
                 >
                     {#if item}
-                        {#if item.sprite?.url}
+                        {#if getItemIconVisual(item.visuals)}
                             <img
                                 class="h-7 w-7 object-contain [image-rendering:pixelated]"
-                                src={item.sprite.url}
+                                src={getItemIconVisual(item.visuals)!.src}
                                 alt={item.name}
                             />
                         {:else}
@@ -90,10 +90,10 @@
                     title={item?.description ?? 'Empty passive slot'}
                 >
                     {#if item}
-                        {#if item.sprite?.url}
+                        {#if getItemIconVisual(item.visuals)}
                             <img
                                 class="h-7 w-7 object-contain [image-rendering:pixelated]"
-                                src={item.sprite.url}
+                                src={getItemIconVisual(item.visuals)!.src}
                                 alt={item.name}
                             />
                         {:else}

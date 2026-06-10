@@ -5,15 +5,22 @@ import type { KillRecord, BattleResult } from '../systems/combat.js';
 import type { Enemy } from '../entities/enemies/index.js';
 import type { Character } from '../entities/characters/index.js';
 import { getEntityAnchorPoint } from '../rendering/shadow.js';
+import { DamageNumberManager, type DamagePopup } from './damageNumbers.js';
 
 export class GamePolish {
     readonly audio = new AudioManager();
     readonly particles = new ParticleManager();
     readonly effects = new EffectsManager();
+    readonly damageNumbers = new DamageNumberManager();
 
     update(dt: number) {
         this.particles.update(dt);
         this.effects.update(dt);
+        this.damageNumbers.update(dt);
+    }
+
+    spawnDamagePopups(popups: readonly DamagePopup[]) {
+        this.damageNumbers.spawn(popups);
     }
 
     onShoot() {
@@ -28,6 +35,7 @@ export class GamePolish {
     }
 
     onCombatResult(result: BattleResult, enemies: Enemy[], character: Character | null) {
+        this.spawnDamagePopups(result.damagePopups);
         this.onEnemyKills(result.combat.kills, enemies);
         if (result.characterDamaged && character) {
             const anchor = getEntityAnchorPoint(character);
@@ -47,6 +55,7 @@ export class GamePolish {
 
     onGameStart() {
         this.particles.clear();
+        this.damageNumbers.clear();
         this.effects.fadeIn();
     }
 
@@ -58,11 +67,13 @@ export class GamePolish {
 
     onReturnToMenu() {
         this.particles.clear();
+        this.damageNumbers.clear();
         this.effects.fadeOut();
     }
 
     destroy() {
         this.audio.destroy();
         this.particles.clear();
+        this.damageNumbers.clear();
     }
 }

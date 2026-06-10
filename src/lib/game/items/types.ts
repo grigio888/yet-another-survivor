@@ -1,9 +1,12 @@
 import type { Projectile } from '../systems/collision.js';
+import type { ItemVisuals } from './visuals/types.js';
 
 export const MAX_ACTIVE_ITEMS = 4;
 export const MAX_PASSIVE_ITEMS = 4;
 
 export type ItemKind = 'active' | 'passive';
+
+export type ActivePerkKind = 'projectile' | 'melee' | 'area';
 
 /** Stats that passive perks may modify. */
 export type ModifiableStat =
@@ -21,22 +24,37 @@ export type PassivePerk = {
     value: number;
 };
 
-export type ProjectileActivePerk = {
-    kind: 'projectile';
+type ActivePerkBase = {
     damage: number;
-    speed: number;
     range: number;
     cooldownMs: number;
+};
+
+/** Ranged — spawns a traveling projectile (fireball, throwing spear). */
+export type ProjectileActivePerk = ActivePerkBase & {
+    kind: 'projectile';
+    speed: number;
     projectileColor?: string;
     projectileType?: string;
 };
 
-export type ActivePerk = ProjectileActivePerk;
-
-export type ItemSprite = {
-    url: string;
-    size: number;
+/** Short-range — slash / thrust at the wielder's facing (sword, spear). */
+export type MeleeActivePerk = ActivePerkBase & {
+    kind: 'melee';
+    /** Reach in pixels from the attack origin. */
+    reach: number;
+    arcDegrees?: number;
 };
+
+/** Area — damage zone at a point (nova, ground slam, aura). */
+export type AreaActivePerk = ActivePerkBase & {
+    kind: 'area';
+    /** Damage radius in pixels, centered on the cast point. */
+    radius: number;
+    durationMs?: number;
+};
+
+export type ActivePerk = ProjectileActivePerk | MeleeActivePerk | AreaActivePerk;
 
 export type ItemDefinition = {
     id: string;
@@ -45,7 +63,7 @@ export type ItemDefinition = {
     kind: ItemKind;
     passives: PassivePerk[];
     active: ActivePerk | null;
-    sprite?: ItemSprite | null;
+    visuals?: ItemVisuals | null;
 };
 
 export type AttackStats = {

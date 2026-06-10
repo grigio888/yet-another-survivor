@@ -1,4 +1,5 @@
 // Ranged spellcaster with moderate HP and projectile speed
+import { DEFAULT_STARTING_ITEMS } from '../../items/index.js';
 import { Character, type CharacterStats } from './Character.js';
 import type { EntitySpriteConfig } from '../../animation/spriteConfig.js';
 import type { SpriteFrame } from '../../animation/spriteFrame.js';
